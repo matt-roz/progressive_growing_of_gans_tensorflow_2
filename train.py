@@ -27,10 +27,10 @@ def get_dataset_pipeline(
     if dataset_caching:
         if dataset_cache_file:
             if os.path.exists(dataset_cache_file):
-                raise FileExistsError(f"--cachefile {dataset_cache_file} already exists")
+                raise FileExistsError(f"--cache-file {dataset_cache_file} already exists")
             logging.info(f"using dataset_cache_file={dataset_cache_file} for dataset caching")
         else:
-            msg = f"dataset caching is activated with --cache and --cachefile was specified as \"\". TensorFlow will " \
+            msg = f"dataset caching is activated with --cache and --cache-file was specified as \"\". TensorFlow will "\
                   f"attempt to load the entire dataset into memory. In case of OOM specify a temporary cachefile!"
             logging.warning(msg)
 
@@ -48,7 +48,7 @@ def get_dataset_pipeline(
         dataset = dataset.repeat(epochs)
     if buffer_size:
         dataset = dataset.prefetch(buffer_size=num_parallel_calls)
-    logging.info(f"successfully loaded dataset={name} with split={split} from data_dir={data_dir}")
+    logging.info(f"Successfully loaded dataset={name} with split={split} from data_dir={data_dir}")
     return dataset, info.splits[split].num_examples
 
 

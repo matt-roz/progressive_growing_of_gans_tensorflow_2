@@ -33,9 +33,9 @@ if __name__ == '__main__':
 
     # input directories
     dir_parser = parser.add_argument_group(title="directory arguments")
-    dir_parser.add_argument('--outdir', dest="outdir", type=str, default=output_dir,
+    dir_parser.add_argument('--out-dir', dest="outdir", type=str, default=output_dir,
                             help="root directory for outputs (default: '%(default)s')")
-    dir_parser.add_argument('--datadir', dest="datadir", type=str, default=data_dir,
+    dir_parser.add_argument('--data-dir', dest="datadir", type=str, default=data_dir,
                             help="root directory for data input (default: '%(default)s')")
 
     # output, saving
@@ -70,7 +70,7 @@ if __name__ == '__main__':
 
     # tensorflow optimizer hyperparams
     optim_parser = parser.add_argument_group(title="optimizer arguments")
-    optim_parser.add_argument('--learningrate', dest='learningrate', type=float, default=0.001,
+    optim_parser.add_argument('--learning-rate', dest='learningrate', type=float, default=0.001,
                               help="learningrate to train both AdamOptimizers with (default: '%(default)s')")
     optim_parser.add_argument('--beta1', dest="beta1", type=float, default=0.9,
                               help="beta1 momentum to train both AdamOptimizers with (default: '%(default)s')")
@@ -102,21 +102,21 @@ if __name__ == '__main__':
                              "over dataset as well as data prefetching (default: 'tf.data.experimental.AUTOTUNE')")
     data_parser.add_argument('--cache', dest="caching", default=False, action="store_true",
                              help="activates TensorFlow's dataset caching (default: '%(default)s')")
-    data_parser.add_argument('--cachefile', dest="cachefile", type=str, default=cache_file_path,
+    data_parser.add_argument('--cache-file', dest="cachefile", type=str, default=cache_file_path,
                              help="path to temporary cachefile or set to empty string \"\" to cache entire dataset in "
                              "system memory (default: '%(default)s')")
 
     # TensorBoard callbacks
     tboard_parser = parser.add_argument_group(title="tensorboard callback arguments")
-    tboard_parser.add_argument('--earlystopping', dest='earlystopping', type=int, default=0,
+    tboard_parser.add_argument('--early-stopping', dest='earlystopping', type=int, default=0,
                                help="stops train when val_loss stopped improving for number of epochs. 0 = disabled "
                                "(default: '%(default)s')")
-    tboard_parser.add_argument('--checkpointfrequency', dest='checkpointfrequency', type=int, default=1,
+    tboard_parser.add_argument('--checkpoint-frequency', dest='checkpointfrequency', type=int, default=1,
                                help="defines ModelCheckpoint save frequency. 0 = disabled (default: '%(default)s')")
-    tboard_parser.add_argument('--evalfrequency', dest='evalfrequency', type=int, default=1,
+    tboard_parser.add_argument('--eval-frequency', dest='evalfrequency', type=int, default=1,
                                help="defines generator image evaluation frequency. 0 = disabled "
                                "(default: '%(default)s')")
-    tboard_parser.add_argument('--logfrequency', dest='logfrequency', type=str, choices=['epoch', 'batch', ''],
+    tboard_parser.add_argument('--log-frequency', dest='logfrequency', type=str, choices=['epoch', 'batch', ''],
                                default='epoch', help="defines TensorBoard logging frequency. \"\" = disabled "
                                "(default: '%(default)s')")
 
@@ -125,16 +125,16 @@ if __name__ == '__main__':
     log_parser.add_argument('--device-placement', dest='deviceplacement', default=False, action="store_true",
                             help="activates TensorFlow device placement")
     log_parser.add_argument('--no-log', dest="logging", default=True, action="store_false", help="deactivates logging")
-    log_parser.add_argument('--loglevel', dest='loglevel', type=str, default=log_level_choices[0],
+    log_parser.add_argument('--log-level', dest='loglevel', type=str, default=log_level_choices[0],
                             choices=log_level_choices, help="depicts logging level (default: '%(default)s')")
-    log_parser.add_argument('--logdir', dest="logdir", type=str, default=output_dir,
+    log_parser.add_argument('--log-dir', dest="logdir", type=str, default=output_dir,
                             help="depicts root directory for logging (default: '%(default)s')")
-    log_parser.add_argument('--logfilename', dest='logfile', type=str, default=log_file,
+    log_parser.add_argument('--log-filename', dest='logfile', type=str, default=log_file,
                             help="name of log file (default: '%(default)s')")
-    log_parser.add_argument('--logformat', dest='logformat', type=str,
+    log_parser.add_argument('--log-format', dest='logformat', type=str,
                             default='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                             help="defines logger message format (default: '%(default)s')")
-    log_parser.add_argument('--logdateformat', dest='logdateformat', type=str, default='%m/%d/%Y %I:%M:%S %p',
+    log_parser.add_argument('--log-date-format', dest='logdateformat', type=str, default='%m/%d/%Y %I:%M:%S %p',
                             help="defines logger timestamp format (default: '%(default)s')")
 
     # parse
