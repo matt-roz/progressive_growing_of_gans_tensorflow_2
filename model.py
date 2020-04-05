@@ -191,7 +191,6 @@ def celeb_a_generator(input_tensor, input_shape, **kwargs):
     # x = tf.keras.layers.ReLU()(x)
 
     x = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), activation='tanh', padding='same')(x)
-    x = (x + 1.0) / 2.0
     return tf.keras.models.Model(inputs=inputs, outputs=x, name='celeb_a_generator')
 
 

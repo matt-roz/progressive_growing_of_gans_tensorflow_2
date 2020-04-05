@@ -46,7 +46,7 @@ def get_dataset_pipeline(
 @tf.function
 def celeb_a_hq_process_func(entry, as_supervised=False):
     image = entry['image'] if not as_supervised else entry[0]
-    image = (tf.cast(image, tf.float32) - 0) / 255.0
+    image = (tf.cast(image, tf.float32) - 127.5) / 127.5
     return image
 
 

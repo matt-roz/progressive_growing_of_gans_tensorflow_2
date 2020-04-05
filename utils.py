@@ -43,8 +43,8 @@ def save_eval_images(random_noise, generator, epoch , output_dir):
     rand_predictions = generator(tf.random.normal(shape=tf.shape(random_noise)), training=False).numpy()
     num_images, width, height, channels = fixed_predictions.shape  # 16, 128, 128, 3
 
-    fixed_predictions *= 255  # * ((fixed_predictions + 1.0) / 2.0)
-    rand_predictions *= 255  # * ((rand_predictions + 1.0) / 2.0)
+    fixed_predictions = 255 * ((fixed_predictions + 1.0) / 2.0)
+    rand_predictions = 255 * ((rand_predictions + 1.0) / 2.0)
     fixed_predictions.astype(dtype=np.uint8, copy=False)
     rand_predictions.astype(dtype=np.uint8, copy=False)
 
