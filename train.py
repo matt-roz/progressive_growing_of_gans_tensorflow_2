@@ -17,28 +17,16 @@ def get_dataset_pipeline(
         batch_size: Optional[int] = None,
         buffer_size: Optional[int] = None,
         process_func: Optional[Callable] = None,
-        num_parallel_calls: Optional[int] = None,
+        map_parallel_calls: Optional[int] = None,
+        interleave_parallel_calls: Optional[int] = None,
+        prefetch_parallel_calls: Optional[int] = None,
         epochs: Optional[int] = None,
         dataset_caching: bool = True,
         dataset_cache_file: Union[str, os.PathLike] = "") -> Tuple[tf.data.Dataset, int]:
-    # assert data directory exists
-    assert os.path.isdir(data_dir), f"data_dir={data_dir} is not a valid directory"
-
-    # resolve caching file, log configuration for user (incorrect configuration might lead to OOM)
-    if dataset_caching:
-        if dataset_cache_file:
-            if os.path.exists(dataset_cache_file):
-                raise FileExistsError(f"--cache-file {dataset_cache_file} already exists")
-            logging.info(f"using dataset_cache_file={dataset_cache_file} for dataset caching")
-        else:
-            msg = f"dataset caching is activated with --cache and --cache-file was specified as \"\". TensorFlow will "\
-                  f"attempt to load the entire dataset into memory. In case of OOM specify a temporary cachefile!"
-            logging.warning(msg)
-
     # load dataset from tensorflow_datasets, apply logical chain of transformations
     dataset, info = tfds.load(name=name, split=split, data_dir=data_dir, with_info=True, as_supervised=False)
     if process_func:
-        dataset = dataset.map(map_func=process_func, num_parallel_calls=num_parallel_calls)
+        dataset = dataset.map(map_func=process_func, num_parallel_calls=map_parallel_calls)
     if dataset_caching:
         dataset = dataset.cache(filename=dataset_cache_file)
     if buffer_size:
@@ -48,7 +36,7 @@ def get_dataset_pipeline(
     if epochs:
         dataset = dataset.repeat(epochs)
     if buffer_size:
-        dataset = dataset.prefetch(buffer_size=num_parallel_calls)
+        dataset = dataset.prefetch(buffer_size=prefetch_parallel_calls)
     logging.info(f"Successfully loaded dataset={name} with split={split} from data_dir={data_dir}")
     return dataset, info.splits[split].num_examples
 
@@ -73,6 +61,9 @@ def train(arguments):
             batch_size=arguments.globalbatchsize,
             buffer_size=arguments.buffersize,
             process_func=celeb_a_hq_process_func,
+            map_parallel_calls=arguments.mapcalls,
+            interleave_parallel_calls=arguments.interleavecalls,
+            prefetch_parallel_calls=arguments.prefetchcalls,
             dataset_caching=arguments.caching,
             dataset_cache_file=arguments.cachefile
         )

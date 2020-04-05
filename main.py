@@ -97,9 +97,15 @@ if __name__ == '__main__':
                              help="depicts the data split for tensorflow_datasets to load (default: '%(default)s')")
     data_parser.add_argument('--buffer-size', dest="buffersize", type=int, default=5000,
                              help="buffersize for TensorFlow Dataset shuffle (default: '%(default)s')")
-    data_parser.add_argument('--num-parallel-calls', dest="numparallelcalls", type=int,
-                             default=tf.data.experimental.AUTOTUNE, help="cpu parallelization for mapping functions "
-                             "over dataset as well as data prefetching (default: 'tf.data.experimental.AUTOTUNE')")
+    data_parser.add_argument('--map-parallel-calls', dest="mapcalls", type=int,
+                             default=tf.data.experimental.AUTOTUNE, help="num threads for mapping functions "
+                             "over dataset (default: 'tf.data.experimental.AUTOTUNE')")
+    data_parser.add_argument('--prefetch-parallel-calls', dest="prefetchcalls", type=int,
+                             default=tf.data.experimental.AUTOTUNE, help="num threads for prefetching "
+                             "dataset to accelerators (default: 'tf.data.experimental.AUTOTUNE')")
+    data_parser.add_argument('--interleave-parallel-calls', dest="interleavecalls", type=int,
+                             default=tf.data.experimental.AUTOTUNE, help="num threads for interleaving "
+                             "dataset (default: 'tf.data.experimental.AUTOTUNE')")
     data_parser.add_argument('--cache', dest="caching", default=False, action="store_true",
                              help="activates TensorFlow's dataset caching (default: '%(default)s')")
     data_parser.add_argument('--cache-file', dest="cachefile", type=str, default=cache_file_path,
@@ -139,9 +145,6 @@ if __name__ == '__main__':
 
     # parse
     args = parser.parse_args()
-
-    # assert certain invalid inputs
-    assert args.minresolution <= args.maxresolution, f"--min-resolution must not exceed --max-resolution"
 
     # tensorflow execution mode
     if args.neager:
@@ -226,6 +229,20 @@ if __name__ == '__main__':
         logging.debug(f"{host}: started {__name__} with args={vars(args)}")
     if args.is_chief and (args.saving or args.evaluate):
         create_directory(args.outdir)
+
+    # assert certain invalid inputs
+    assert args.minresolution <= args.maxresolution, f"--min-resolution must not exceed --max-resolution"
+
+    # resolve caching file, log configuration for user (incorrect configuration might lead to OOM)
+    if args.caching:
+        if args.cachefile:
+            if os.path.exists(args.cachefile):
+                raise FileExistsError(f"--cache-file {args.cachefile} already exists")
+            logging.info(f"using dataset_cache_file={args.cachefile} for dataset caching")
+        else:
+            msg = f"dataset caching is activated with --cache and --cache-file was specified as \"\". TensorFlow will "\
+                  f"attempt to load the entire dataset into memory. In case of OOM specify a temporary cachefile!"
+            logging.warning(msg)
 
     # start job
     train(args)
