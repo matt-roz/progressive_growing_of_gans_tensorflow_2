@@ -69,8 +69,7 @@ def train(arguments):
             dataset_cache_file=arguments.cachefile
         )
         image_shape = train_dataset.element_spec.shape[1:]
-        if arguments.is_chief:
-            logging.info(f"{arguments.host}: train_dataset contains {num_examples} images with shape={image_shape}")
+        logging.info(f"{arguments.host}: train_dataset contains {num_examples} images with shape={image_shape}")
 
         # instantiate optimizers
         optimizer_gen = tf.keras.optimizers.Adam(
@@ -92,9 +91,8 @@ def train(arguments):
         # get model
         model_gen = celeb_a_generator(input_tensor=None, input_shape=(arguments.noisedim,))
         model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
-        if arguments.is_chief:
-            model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-            model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+        model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+        model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
     # local tf.function definitions for fast graphmode execution
     @tf.function
