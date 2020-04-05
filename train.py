@@ -7,7 +7,8 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from tqdm import tqdm
 
-from model import celeb_a_discriminator, celeb_a_generator
+from model import celeb_a_discriminator, celeb_a_generator, Generator, Discriminator
+from utils import save_eval_images
 
 
 def get_dataset_pipeline(
@@ -89,10 +90,17 @@ def train(arguments):
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # get model
-        model_gen = celeb_a_generator(input_tensor=None, input_shape=(arguments.noisedim,))
-        model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
+        # model_gen = celeb_a_generator(input_tensor=None, input_shape=(arguments.noisedim,))
+        # model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
+        model_gen = Generator(name='celeb_a_hq_generator')
+        model_dis = Discriminator(noise_stddev=0.0, name='celeb_a_hq_discriminator')
+        model_gen.build(input_shape=(arguments.noisedim,))
+        model_dis.build(input_shape=image_shape)
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+
+        # random noise for image eval
+        random_noise = tf.random.normal(shape=(16, arguments.noisedim), seed=1000)
 
     # local tf.function definitions for fast graphmode execution
     @tf.function
@@ -164,7 +172,7 @@ def train(arguments):
 
             # save eval images
             if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
-                pass
+                save_eval_images(random_noise, model_gen, epoch, arguments.outdir)
 
             # save model checkpoints
             if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
@@ -179,3 +187,5 @@ def train(arguments):
 
     # train loop
     train_loop()
+
+

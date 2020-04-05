@@ -1,6 +1,9 @@
 import os
 from typing import Union
 
+import numpy as np
+from PIL import Image
+
 
 def get_environment_variable(identifier: str) -> str:
     if not isinstance(identifier, str):
@@ -32,3 +35,28 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
             raise FileExistsError(f"{directory} already exists as a file/link and can't be created")
     else:
         os.makedirs(directory, *args, **kwargs)
+
+
+def save_eval_images(random_noise, generator, epoch , output_dir):
+    fixed_predictions = generator(random_noise, training=False).numpy()
+    rand_predictions = generator(tf.random.normal(shape=tf.shape(random_noise)), training=False).numpy()
+    num_images, width, height, channels = fixed_predictions.shape  # 16, 128, 128, 3
+
+    fixed_predictions = 255 * ((fixed_predictions + 1.0) / 2.0)
+    rand_predictions = 255 * ((rand_predictions + 1.0) / 2.0)
+
+    fixed_predictions.astype(dtype=np.uint8, copy=False)
+    rand_predictions.astype(dtype=np.uint8, copy=False)
+
+    predictions = np.empty(shape=[2 * height, num_images * width,  channels], dtype=np.uint8)
+    for index in range(len(fixed_predictions)):
+        predictions[:height, index * width:(index + 1) * width, :] = fixed_predictions[index]
+        predictions[height:, index * width:(index + 1) * width, :] = rand_predictions[index]
+
+    image = Image.fromarray(predictions)
+    image.save(os.path.join(output_dir, f"epoch-{epoch:04d}_shape-{width}x{height}x{channels}.png"))
+
+    image.close()
+    del fixed_predictions
+    del rand_predictions
+    del predictions
