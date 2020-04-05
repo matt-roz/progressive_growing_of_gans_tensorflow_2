@@ -205,7 +205,7 @@ def celeb_a_discriminator(input_tensor, input_shape, noise_stddev: float = 0.25,
             inputs = input_tensor
 
     x = inputs
-    x = tf.keras.layers.Conv2D(16, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)(x)
+    # x = tf.keras.layers.Conv2D(16, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)(x)
     if noise_stddev != 0.0:
         x = tf.keras.layers.GaussianNoise(stddev=noise_stddev)(x)
         x = tf.clip_by_value(t=x, clip_value_min=0.0, clip_value_max=1.0)

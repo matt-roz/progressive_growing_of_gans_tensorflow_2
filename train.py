@@ -46,7 +46,7 @@ def get_dataset_pipeline(
 @tf.function
 def celeb_a_hq_process_func(entry, as_supervised=False):
     image = entry['image'] if not as_supervised else entry[0]
-    image = (tf.cast(image, tf.float32) - 127.5) / 127.5
+    image = (tf.cast(image, tf.float32) - 0) / 255.0
     return image
 
 
@@ -90,12 +90,12 @@ def train(arguments):
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # get model
-        # model_gen = celeb_a_generator(input_tensor=None, input_shape=(arguments.noisedim,))
-        # model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
-        model_gen = Generator(name='celeb_a_hq_generator')
-        model_dis = Discriminator(noise_stddev=0.0, name='celeb_a_hq_discriminator')
-        model_gen.build(input_shape=(arguments.noisedim,))
-        model_dis.build(input_shape=image_shape)
+        model_gen = celeb_a_generator(input_tensor=None, input_shape=(arguments.noisedim,))
+        model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
+        # model_gen = Generator(name='celeb_a_hq_generator')
+        # model_dis = Discriminator(noise_stddev=0.0, name='celeb_a_hq_discriminator')
+        # model_gen.build(input_shape=(arguments.noisedim,))
+        # model_dis.build(input_shape=image_shape)
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
