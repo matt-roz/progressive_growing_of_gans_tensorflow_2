@@ -72,11 +72,11 @@ if __name__ == '__main__':
     optim_parser = parser.add_argument_group(title="optimizer arguments")
     optim_parser.add_argument('--learning-rate', dest='learningrate', type=float, default=0.001,
                               help="learningrate to train both AdamOptimizers with (default: '%(default)s')")
-    optim_parser.add_argument('--beta1', dest="beta1", type=float, default=0.9,
+    optim_parser.add_argument('--beta1', dest="beta1", type=float, default=0.0,
                               help="beta1 momentum to train both AdamOptimizers with (default: '%(default)s')")
-    optim_parser.add_argument('--beta2', dest="beta2", type=float, default=0.999,
+    optim_parser.add_argument('--beta2', dest="beta2", type=float, default=0.99,
                               help="beta2 momentum to train both AdamOptimizers with (default: '%(default)s')")
-    optim_parser.add_argument('--epsilon', dest="epsilon", type=float, default=1e-7,
+    optim_parser.add_argument('--epsilon', dest="epsilon", type=float, default=1e-8,
                               help="epsilon to train both AdamOptimizers with (default: '%(default)s')")
     optim_parser.add_argument('--disc-repeats', dest="discrepeats", type=float, default=1.0,
                               help="learningrate advantage of discriminator over generator (default: '%(default)s')")
