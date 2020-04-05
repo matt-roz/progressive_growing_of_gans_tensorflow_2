@@ -25,7 +25,7 @@ def get_dataset_pipeline(
         dataset_caching: bool = True,
         dataset_cache_file: Union[str, os.PathLike] = "") -> Tuple[tf.data.Dataset, int]:
     # load dataset from tensorflow_datasets, apply logical chain of transformations
-    dataset, info = tfds.load(name=name, split=split, data_dir=data_dir, with_info=True, as_supervised=False)
+    dataset, info = tfds.load(name=name, split=split, data_dir=data_dir, with_info=True, as_supervised=as_supervised)
     if process_func:
         dataset = dataset.map(map_func=process_func, num_parallel_calls=map_parallel_calls)
     if dataset_caching:
@@ -43,8 +43,8 @@ def get_dataset_pipeline(
 
 
 @tf.function
-def celeb_a_hq_process_func(entry):
-    image = entry['image']
+def celeb_a_hq_process_func(entry, as_supervised=False):
+    image = entry['image'] if not as_supervised else entry[0]
     image = (tf.cast(image, tf.float32) - 127.5) / 127.5
     return image
 
