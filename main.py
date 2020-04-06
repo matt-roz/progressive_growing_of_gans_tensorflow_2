@@ -208,10 +208,11 @@ if __name__ == '__main__':
     log_file_path = os.path.join(args.logdir, args.logfile)
 
     # store certain attributes in args
-    args.source_dir = source_dir
-    args.working_dir = working_dir
+    args.sourcedir = source_dir
+    args.workingdir = working_dir
     args.timestamp = timestamp
     args.host = host
+    args.summary = tf.summary.create_file_writer(args.logdir)
 
     # chief creates directories as well as logfile
     if args.is_chief and args.logging:

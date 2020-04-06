@@ -90,12 +90,12 @@ def train(arguments):
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # get model
-        model_gen = celeb_a_generator(input_tensor=None, input_shape=(arguments.noisedim,))
-        model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
-        # model_gen = Generator(name='celeb_a_hq_generator')
-        # model_dis = Discriminator(noise_stddev=0.0, name='celeb_a_hq_discriminator')
-        # model_gen.build(input_shape=(arguments.noisedim,))
-        # model_dis.build(input_shape=image_shape)
+        # model_gen = celeb_a_generator(input_tensor=None, input_shape=(arguments.noisedim,))
+        # model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
+        model_gen = Generator(name='celeb_a_hq_generator')
+        model_dis = Discriminator(noise_stddev=0.0, name='celeb_a_hq_discriminator')
+        model_gen.build(input_shape=(arguments.noisedim,))
+        model_dis.build(input_shape=image_shape)
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
@@ -139,7 +139,7 @@ def train(arguments):
 
     def epoch_step(dataset, num_epoch, num_steps):
         # return metrics
-        _epoch_gen_loss, _epoch_dis_loss, _image_count = 0.0, 0.0, 0.0
+        _epoch_gen_loss, _epoch_dis_loss, _image_count, _step = 0.0, 0.0, 0.0, 0
 
         # epoch iterable, chief iterates over tqdm for status prints - all other workers over tf.data.Dataset
         dataset = tqdm(iterable=dataset, desc=f"epoch-{num_epoch + 1:04d}", unit="batch", total=num_steps, leave=False)
@@ -154,12 +154,20 @@ def train(arguments):
             _epoch_dis_loss = (_image_count * _epoch_dis_loss + _size * batch_dis_loss) / (_image_count + _size)
             _image_count += _size
 
+            # TensorBoard logging
+            if arguments.logging and arguments.logfrequency == 'batch':
+                _current_step = num_epoch * num_steps + _step
+                with arguments.summary.as_default():
+                    tf.summary.scalar(name="batch_losses/generator", data=_epoch_gen_loss, step=_current_step)
+                    tf.summary.scalar(name="batch_losses/discriminator", data=_epoch_dis_loss, step=_current_step)
+
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
             dataset.set_postfix_str(batch_status_message)
             logging.debug(batch_status_message)
+            _step += 1
 
-        return _epoch_gen_loss, _epoch_dis_loss, tf.cast(_image_count, tf.int32)
+        return _epoch_gen_loss, _epoch_dis_loss, _image_count
 
     def train_loop():
         epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
@@ -170,6 +178,15 @@ def train(arguments):
             gen_loss, dis_loss, image_count = epoch_step(train_dataset, epoch, steps_per_epoch)
             epoch_duration = time.time() - epoch_start_time
 
+            # TensorBoard logging
+            if arguments.logging and arguments.logfrequency:
+                with arguments.summary.as_default():
+                    tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
+                    tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
+                    tf.summary.scalar(name="train_speed/batches_per_second", data=tf.cast(steps_per_epoch, tf.float32)/epoch_duration, step=epoch)
+                    tf.summary.scalar(name="losses/generator", data=gen_loss, step=epoch)
+                    tf.summary.scalar(name="losses/discriminator", data=dis_loss, step=epoch)
+
             # save eval images
             if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
                 save_eval_images(random_noise, model_gen, epoch, arguments.outdir)
@@ -177,8 +194,10 @@ def train(arguments):
             # save model checkpoints
             if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
                 str_image_shape = 'x'.join([str(x) for x in image_shape])
-                model_gen.save(filepath=f"generator-{epoch + 1:04d}-shape-{str_image_shape}.hdf5")
-                model_dis.save(filepath=f"discriminator-{epoch + 1:04d}-shape-{str_image_shape}.hdf5")
+                gen_file = os.path.join(arguments.outdir, f"generator-{epoch + 1:04d}-shape-{str_image_shape}.hdf5")
+                dis_file = os.path.join(arguments.outdir, f"discriminator-{epoch + 1:04d}-shape-{str_image_shape}.hdf5")
+                model_gen.save(filepath=gen_file)
+                model_dis.save(filepath=dis_file)
 
             # update log files and tqdm status message
             status_message = f"sec={epoch_duration:.3f}, gen_loss={gen_loss:.3f}, dis_loss={dis_loss:.3f}"
