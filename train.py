@@ -160,8 +160,8 @@ def train(arguments):
                 with arguments.summary.as_default():
                     tf.summary.scalar(name="losses/batch/generator", data=batch_gen_loss, step=_current_step)
                     tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_current_step)
-                    tf.summary.scalar(name="losses/epoch/moving_mean/generator", data=_epoch_gen_loss, step=_current_step)
-                    tf.summary.scalar(name="losses/epoch/moving_mean/discriminator", data=_epoch_dis_loss, step=_current_step)
+                    tf.summary.scalar(name="losses/batch/moving_epoch_mean/generator", data=_epoch_gen_loss, step=_current_step)
+                    tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_current_step)
 
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
