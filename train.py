@@ -158,8 +158,10 @@ def train(arguments):
             if arguments.logging and arguments.logfrequency == 'batch':
                 _current_step = num_epoch * num_steps + _step
                 with arguments.summary.as_default():
-                    tf.summary.scalar(name="batch_losses/generator", data=_epoch_gen_loss, step=_current_step)
-                    tf.summary.scalar(name="batch_losses/discriminator", data=_epoch_dis_loss, step=_current_step)
+                    tf.summary.scalar(name="losses/batch/generator", data=batch_gen_loss, step=_current_step)
+                    tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_current_step)
+                    tf.summary.scalar(name="losses/epoch/moving_mean/generator", data=_epoch_gen_loss, step=_current_step)
+                    tf.summary.scalar(name="losses/epoch/moving_mean/discriminator", data=_epoch_dis_loss, step=_current_step)
 
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
@@ -184,8 +186,8 @@ def train(arguments):
                     tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
                     tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
                     tf.summary.scalar(name="train_speed/batches_per_second", data=tf.cast(steps_per_epoch, tf.float32)/epoch_duration, step=epoch)
-                    tf.summary.scalar(name="losses/generator", data=gen_loss, step=epoch)
-                    tf.summary.scalar(name="losses/discriminator", data=dis_loss, step=epoch)
+                    tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
+                    tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
 
             # save eval images
             if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
