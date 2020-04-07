@@ -78,27 +78,27 @@ def train(arguments):
         # model_dis = celeb_a_discriminator(input_tensor=None, input_shape=image_shape, noise_stddev=0.0)
         model_gen = Generator(name='celeb_a_hq_generator')
         model_dis = Discriminator(name='celeb_a_hq_discriminator')
-        model_gen.build(input_shape=(arguments.noisedim,), stage=arguments.stopstage)
-        model_dis.build(input_shape=(arguments.maxresolution, arguments.maxresolution, 3), stage=arguments.stopstage)
-        model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-        model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+        #model_gen.build(input_shape=(arguments.noisedim,), stage=arguments.stopstage)
+        #model_dis.build(input_shape=(arguments.maxresolution, arguments.maxresolution, 3), stage=arguments.stopstage)
+        #model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+        #model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
         # random noise for image eval
         random_noise = tf.random.normal(shape=(16, arguments.noisedim), seed=1000)
 
     # local tf.function definitions for fast graphmode execution
-    @tf.function
+    #@tf.function
     def discriminator_loss(real_output, fake_output):
         real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
         fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
         total_loss = real_loss + fake_loss
         return total_loss
 
-    @tf.function
+    #@tf.function
     def generator_loss(fake_output):
         return tf_loss_obj(tf.ones_like(fake_output), fake_output)
 
-    @tf.function
+    #@tf.function
     def train_step(image_batch, local_batch_size, current_stage):
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noisedim])

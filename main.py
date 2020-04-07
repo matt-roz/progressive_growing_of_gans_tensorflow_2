@@ -222,6 +222,7 @@ if __name__ == '__main__':
     if args.is_chief and args.logging:
         create_directory(args.logdir)
         logging.basicConfig(filename=log_file_path, format=args.logformat, level=args.loglevel, datefmt=args.logdateformat)
+        tf.get_logger().setLevel('ERROR')
         logging.info(f"{host}: successfully set up logging")
         logging.info(f"{host}: TensorFlow Eager Execution is {'disabled' if args.neager else 'enabled'}.")
         logging.info(f"{host}: XLA Compiler is {'disabled' if not args.XLA else 'enabled'}.")
