@@ -1,5 +1,6 @@
 import os
 import sys
+import math
 import json
 import logging
 import platform
@@ -213,6 +214,9 @@ if __name__ == '__main__':
     args.timestamp = timestamp
     args.host = host
     args.summary = tf.summary.create_file_writer(args.logdir)
+    args.numexamples = 30000
+    args.startstage = int(math.log2(args.minresolution))
+    args.stopstage = int(math.log2(args.maxresolution))
 
     # chief creates directories as well as logfile
     if args.is_chief and args.logging:

@@ -38,9 +38,9 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
         os.makedirs(directory, *args, **kwargs)
 
 
-def save_eval_images(random_noise, generator, epoch , output_dir):
-    fixed_predictions = generator(random_noise, training=False).numpy()
-    rand_predictions = generator(tf.random.normal(shape=tf.shape(random_noise)), training=False).numpy()
+def save_eval_images(random_noise, generator, epoch, stage, output_dir):
+    fixed_predictions = generator(random_noise, stage=stage, training=False).numpy()
+    rand_predictions = generator(tf.random.normal(shape=tf.shape(random_noise)), stage=stage, training=False).numpy()
     num_images, width, height, channels = fixed_predictions.shape  # 16, 128, 128, 3
 
     fixed_predictions = 255 * ((fixed_predictions + 1.0) / 2.0)
