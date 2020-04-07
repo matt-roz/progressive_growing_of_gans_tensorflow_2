@@ -28,14 +28,14 @@ class Generator(tf.keras.Model):
         self._conv_1024x1024 = tf.keras.layers.Conv2DTranspose(16, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)
 
         # to rgb conv
-        self._torgb_4 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
-        self._torgb_5 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
-        self._torgb_6 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
-        self._torgb_7 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
-        self._torgb_8 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
-        self._torgb_9 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
-        self._torgb_10 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
-        self._torgb_11 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        self._torgb_4 = None
+        self._torgb_5 = None
+        self._torgb_6 = None
+        self._torgb_7 = None
+        self._torgb_8 = None
+        self._torgb_9 = None
+        self._torgb_10 = None
+        self._torgb_11 = None
 
         # batchnorms
         self._bn_4 = tf.keras.layers.BatchNormalization()
@@ -65,6 +65,24 @@ class Generator(tf.keras.Model):
         x = inputs
         x = self._feature_dense(x, training=training)
         x = self._feature_reshape(x, training=training)
+
+        # create dynamic layers that are not created with build(_input, stage=end_stage)
+        if self._torgb_4 is None:
+            self._torgb_4 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        if self._torgb_5 is None:
+            self._torgb_5 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        if self._torgb_6 is None:
+            self._torgb_6 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        if self._torgb_7 is None:
+            self._torgb_7 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        if self._torgb_8 is None:
+            self._torgb_8 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        if self._torgb_9 is None:
+            self._torgb_9 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        if self._torgb_10 is None:
+            self._torgb_10 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
+        if self._torgb_11 is None:
+            self._torgb_11 = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), padding='same', activation='tanh', use_bias=False)
 
         if stage > 2:
             x = self._conv_8x8(x, training=training)                # (4, 4, 512) -> (8, 8, 256)
@@ -139,14 +157,14 @@ class Discriminator(tf.keras.Model):
         self._conv_4x4 = tf.keras.layers.Conv2D(512, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)
 
         # from rgb
-        self._fromrgb_3 = tf.keras.layers.Conv2D(512, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
-        self._fromrgb_4 = tf.keras.layers.Conv2D(512, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
-        self._fromrgb_5 = tf.keras.layers.Conv2D(512, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
-        self._fromrgb_6 = tf.keras.layers.Conv2D(256, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
-        self._fromrgb_7 = tf.keras.layers.Conv2D(128, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
-        self._fromrgb_8 = tf.keras.layers.Conv2D(64, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
-        self._fromrgb_9 = tf.keras.layers.Conv2D(32, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
-        self._fromrgb_10 = tf.keras.layers.Conv2D(16, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        self._fromrgb_3 = None
+        self._fromrgb_4 = None
+        self._fromrgb_5 = None
+        self._fromrgb_6 = None
+        self._fromrgb_7 = None
+        self._fromrgb_8 = None
+        self._fromrgb_9 = None
+        self._fromrgb_10 = None
 
         # batchnorm
         self._bn_3 = tf.keras.layers.BatchNormalization()
@@ -178,6 +196,24 @@ class Discriminator(tf.keras.Model):
 
     def call(self, inputs, stage, training=None, mask=None):
         x = inputs
+
+        # create dynamic layers that are not created with build(_input, stage=end_stage)
+        if self._fromrgb_3 is None:
+            self._fromrgb_3 = tf.keras.layers.Conv2D(512, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        if self._fromrgb_4 is None:
+            self._fromrgb_4 = tf.keras.layers.Conv2D(512, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        if self._fromrgb_5 is None:
+            self._fromrgb_5 = tf.keras.layers.Conv2D(512, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        if self._fromrgb_6 is None:
+            self._fromrgb_6 = tf.keras.layers.Conv2D(256, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        if self._fromrgb_7 is None:
+            self._fromrgb_7 = tf.keras.layers.Conv2D(128, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        if self._fromrgb_8 is None:
+            self._fromrgb_8 = tf.keras.layers.Conv2D(64, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        if self._fromrgb_9 is None:
+            self._fromrgb_9 = tf.keras.layers.Conv2D(32, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
+        if self._fromrgb_10 is None:
+            self._fromrgb_10 = tf.keras.layers.Conv2D(16, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)
 
         if stage > 9:
             x = self._fromrgb_10(x, training=training)          # (1024, 1024, 3) -> (1024, 1024, 16)
