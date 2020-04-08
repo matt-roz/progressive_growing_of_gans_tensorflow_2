@@ -8,7 +8,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 from tqdm import tqdm
 
-from model import celeb_a_discriminator, celeb_a_generator, Generator, Discriminator
+from model import celeb_a_discriminator, celeb_a_generator, Generator, Discriminator, generator_paper, discriminator_paper
 from utils import save_eval_images, transfer_weights
 
 
@@ -76,8 +76,8 @@ def train(arguments):
         # get model
         alpha = tf.Variable(initial_value=0.0, trainable=False, dtype=tf.float32)
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
-        model_gen = celeb_a_generator(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
-        model_dis = celeb_a_discriminator(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
+        model_gen = generator_paper(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
+        model_dis = discriminator_paper(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
         # model_gen = Generator(name='celeb_a_hq_generator')
         # model_dis = Discriminator(name='celeb_a_hq_discriminator')
         # model_gen.build(input_shape=(arguments.noisedim,), stage=arguments.stopstage)
@@ -180,12 +180,12 @@ def train(arguments):
         dataset_cache_file=arguments.cachefile
     )
     image_shape = train_dataset.element_spec.shape[1:]
-    model_gen = celeb_a_generator(
+    model_gen = generator_paper(
         input_tensor=None,
         alpha=alpha,
         noise_dim=arguments.noisedim,
         start_stage=arguments.startstage, stop_stage=current_stage,
-        name=f"celeb_a_generator_stage_{current_stage}"
+        name=f"pgan_celeb_a_hq_generator_{current_stage}"
     )
     model_dis = celeb_a_discriminator(
         input_tensor=None,
@@ -193,7 +193,7 @@ def train(arguments):
         noise_dim=arguments.noisedim,
         start_stage=arguments.startstage,
         stop_stage=current_stage,
-        name=f"celeb_a_discriminator_stage_{current_stage}"
+        name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
     )
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
@@ -221,8 +221,8 @@ def train(arguments):
         # save model checkpoints
         if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
             str_image_shape = 'x'.join([str(x) for x in image_shape])
-            gen_file = os.path.join(arguments.outdir, f"{model_gen.name}-{epoch + 1:04d}-shape-{str_image_shape}.h5")
-            dis_file = os.path.join(arguments.outdir, f"{model_dis.name}-{epoch + 1:04d}-shape-{str_image_shape}.h5")
+            gen_file = os.path.join(arguments.outdir, f"{model_gen.name}-epoch-{epoch+1:04d}-shape-{str_image_shape}.h5")
+            dis_file = os.path.join(arguments.outdir, f"{model_dis.name}-epoch-{epoch+1:04d}-shape-{str_image_shape}.h5")
             model_gen.save(filepath=gen_file)
             model_dis.save(filepath=dis_file)
 
@@ -272,3 +272,4 @@ def train(arguments):
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
             model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+            save_eval_images(random_noise, model_gen, epoch, arguments.outdir, prefix=f'stage-upcast-{current_stage}')
