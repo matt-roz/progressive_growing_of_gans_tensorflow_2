@@ -187,7 +187,7 @@ def train(arguments):
         start_stage=arguments.startstage, stop_stage=current_stage,
         name=f"pgan_celeb_a_hq_generator_{current_stage}"
     )
-    model_dis = celeb_a_discriminator(
+    model_dis = discriminator_paper(
         input_tensor=None,
         alpha=alpha,
         noise_dim=arguments.noisedim,
@@ -250,7 +250,7 @@ def train(arguments):
             )
             image_shape = train_dataset.element_spec.shape[1:]
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
-            _model_gen = celeb_a_generator(
+            _model_gen = generator_paper(
                 input_tensor=None,
                 alpha=alpha,
                 noise_dim=arguments.noisedim,
@@ -258,7 +258,7 @@ def train(arguments):
                 stop_stage=current_stage,
                 name=f"celeb_a_generator_stage_{current_stage}"
             )
-            _model_dis = celeb_a_discriminator(
+            _model_dis = discriminator_paper(
                 input_tensor=None,
                 alpha=alpha,
                 noise_dim=arguments.noisedim,
