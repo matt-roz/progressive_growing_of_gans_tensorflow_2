@@ -184,7 +184,8 @@ def train(arguments):
         input_tensor=None,
         alpha=alpha,
         noise_dim=arguments.noisedim,
-        start_stage=arguments.startstage, stop_stage=current_stage,
+        start_stage=arguments.startstage,
+        stop_stage=current_stage,
         name=f"pgan_celeb_a_hq_generator_{current_stage}"
     )
     model_dis = discriminator_paper(
@@ -256,7 +257,7 @@ def train(arguments):
                 noise_dim=arguments.noisedim,
                 start_stage=arguments.startstage,
                 stop_stage=current_stage,
-                name=f"celeb_a_generator_stage_{current_stage}"
+                name=f"pgan_celeb_a_hq_generator_{current_stage}"
             )
             _model_dis = discriminator_paper(
                 input_tensor=None,
@@ -264,7 +265,7 @@ def train(arguments):
                 noise_dim=arguments.noisedim,
                 start_stage=arguments.startstage,
                 stop_stage=current_stage,
-                name=f"celeb_a_discriminator_stage_{current_stage}"
+                name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
             )
             transfer_weights(source_model=model_gen, target_model=_model_gen)
             transfer_weights(source_model=model_dis, target_model=_model_dis)
