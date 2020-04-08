@@ -87,18 +87,18 @@ def train(arguments):
         random_noise = tf.random.normal(shape=(16, arguments.noisedim), seed=1000)
 
     # local tf.function definitions for fast graphmode execution
-    #@tf.function
+    @tf.function
     def discriminator_loss(real_output, fake_output):
         real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
         fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
         total_loss = real_loss + fake_loss
         return total_loss
 
-    #@tf.function
+    @tf.function
     def generator_loss(fake_output):
         return tf_loss_obj(tf.ones_like(fake_output), fake_output)
 
-    #@tf.function
+    @tf.function
     def train_step(image_batch, local_batch_size):
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noisedim])
@@ -156,9 +156,9 @@ def train(arguments):
         return _epoch_gen_loss, _epoch_dis_loss, _image_count
 
     # train loop
-    epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
     steps_per_epoch = int(arguments.numexamples // arguments.globalbatchsize) + 1
     current_stage = arguments.startstage
+    epochs = tqdm(iterable=range(arguments.epochs), desc=f'Progressive-GAN', unit='epoch')
     seen_images = 0
 
     train_dataset, _ = get_dataset_pipeline(
@@ -181,6 +181,7 @@ def train(arguments):
                                       stop_stage=current_stage, name=f"celeb_a_discriminator_stage_{current_stage}")
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+    epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
 
     for epoch in epochs:
         epoch_start_time = time.time()
@@ -232,6 +233,7 @@ def train(arguments):
                 dataset_cache_file=arguments.cachefile
             )
             image_shape = train_dataset.element_spec.shape[1:]
+            epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen = celeb_a_generator(
                 input_tensor=None,
                 noise_dim=arguments.noisedim,
