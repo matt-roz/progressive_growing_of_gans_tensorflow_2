@@ -272,4 +272,4 @@ def train(arguments):
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
             model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-            save_eval_images(random_noise, model_gen, epoch, arguments.outdir, prefix=f'stage-upcast-{current_stage}')
+            save_eval_images(random_noise, model_gen, epoch, arguments.outdir, prefix=f'stage-{current_stage}-')
