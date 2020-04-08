@@ -283,6 +283,7 @@ class Discriminator(tf.keras.Model):
 
 def celeb_a_generator(
         input_tensor,
+        alpha: tf.Variable,
         input_shape: Optional[Sequence] = None,
         noise_dim: int = 512,
         start_stage: int = 2,
@@ -333,6 +334,7 @@ def celeb_a_generator(
 
 def celeb_a_discriminator(
         input_tensor,
+        alpha: tf.Variable,
         input_shape: Optional[Sequence] = None,
         start_stage: int = 2,
         stop_stage: int = 10,

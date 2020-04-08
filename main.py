@@ -57,8 +57,8 @@ if __name__ == '__main__':
                               "(default: '%(default)s')")
     model_parser.add_argument('--noise-dim', dest="noisedim", type=int, default=512,
                               help="noise dim for generator to create images from (default: '%(default)s')")
-    model_parser.add_argument('--alpha-step', dest='alphastep', type=float, default=0.001,
-                              help="alpha step for soothing in new layers (default: '%(default)s')")
+    model_parser.add_argument('--epochs-per-stage', dest='epochsperstage', type=int, default=10,
+                              help="epochs until stage is increased (default: '%(default)s')")
 
     # batch_size input
     batch_size_group = model_parser.add_mutually_exclusive_group(required=True)

@@ -74,8 +74,10 @@ def train(arguments):
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # get model
-        model_gen = celeb_a_generator(input_tensor=None, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
-        model_dis = celeb_a_discriminator(input_tensor=None, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
+        alpha = tf.Variable(initial_value=0.0, trainable=False, dtype=tf.float32)
+        alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
+        model_gen = celeb_a_generator(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
+        model_dis = celeb_a_discriminator(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
         # model_gen = Generator(name='celeb_a_hq_generator')
         # model_dis = Discriminator(name='celeb_a_hq_discriminator')
         # model_gen.build(input_shape=(arguments.noisedim,), stage=arguments.stopstage)
@@ -98,7 +100,6 @@ def train(arguments):
     def generator_loss(fake_output):
         return tf_loss_obj(tf.ones_like(fake_output), fake_output)
 
-    @tf.function
     def train_step(image_batch, local_batch_size):
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noisedim])
@@ -146,6 +147,11 @@ def train(arguments):
                     tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_current_step)
                     tf.summary.scalar(name="losses/batch/moving_epoch_mean/generator", data=_epoch_gen_loss, step=_current_step)
                     tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_current_step)
+                    tf.summary.scalar(name="model/batch/alpha", data=alpha, step=_current_step)
+
+            # increase alpha
+            alpha.assign_add(alpha_step_per_image * _size)
+            alpha.assign(tf.minimum(alpha, 1.0))
 
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
@@ -159,7 +165,6 @@ def train(arguments):
     steps_per_epoch = int(arguments.numexamples // arguments.globalbatchsize) + 1
     current_stage = arguments.startstage
     epochs = tqdm(iterable=range(arguments.epochs), desc=f'Progressive-GAN', unit='epoch')
-    seen_images = 0
 
     train_dataset, _ = get_dataset_pipeline(
         name=f"celeb_a_hq/{2**current_stage}",
@@ -175,10 +180,21 @@ def train(arguments):
         dataset_cache_file=arguments.cachefile
     )
     image_shape = train_dataset.element_spec.shape[1:]
-    model_gen = celeb_a_generator(input_tensor=None, noise_dim=arguments.noisedim, start_stage=arguments.startstage,
-                                  stop_stage=current_stage, name=f"celeb_a_generator_stage_{current_stage}")
-    model_dis = celeb_a_discriminator(input_tensor=None, noise_dim=arguments.noisedim, start_stage=arguments.startstage,
-                                      stop_stage=current_stage, name=f"celeb_a_discriminator_stage_{current_stage}")
+    model_gen = celeb_a_generator(
+        input_tensor=None,
+        alpha=alpha,
+        noise_dim=arguments.noisedim,
+        start_stage=arguments.startstage, stop_stage=current_stage,
+        name=f"celeb_a_generator_stage_{current_stage}"
+    )
+    model_dis = celeb_a_discriminator(
+        input_tensor=None,
+        alpha=alpha,
+        noise_dim=arguments.noisedim,
+        start_stage=arguments.startstage,
+        stop_stage=current_stage,
+        name=f"celeb_a_discriminator_stage_{current_stage}"
+    )
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
@@ -187,7 +203,6 @@ def train(arguments):
         epoch_start_time = time.time()
         gen_loss, dis_loss, image_count = epoch_step(train_dataset, epoch, steps_per_epoch)
         epoch_duration = time.time() - epoch_start_time
-        seen_images += int(image_count)
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
@@ -197,6 +212,7 @@ def train(arguments):
                 tf.summary.scalar(name="train_speed/batches_per_second", data=tf.cast(steps_per_epoch, tf.float32)/epoch_duration, step=epoch)
                 tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
                 tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
+                tf.summary.scalar(name="model/epoch/alpha", data=alpha, step=epoch)
 
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
@@ -205,8 +221,8 @@ def train(arguments):
         # save model checkpoints
         if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
             str_image_shape = 'x'.join([str(x) for x in image_shape])
-            gen_file = os.path.join(arguments.outdir, f"generator-{epoch + 1:04d}-shape-{str_image_shape}.hdf5")
-            dis_file = os.path.join(arguments.outdir, f"discriminator-{epoch + 1:04d}-shape-{str_image_shape}.hdf5")
+            gen_file = os.path.join(arguments.outdir, f"{model_gen.name}-{epoch + 1:04d}-shape-{str_image_shape}.h5")
+            dis_file = os.path.join(arguments.outdir, f"{model_dis.name}-{epoch + 1:04d}-shape-{str_image_shape}.h5")
             model_gen.save(filepath=gen_file)
             model_dis.save(filepath=dis_file)
 
@@ -216,8 +232,8 @@ def train(arguments):
         epochs.set_postfix_str(status_message)
 
         # check stage increase
-        if seen_images > 10 * 30000 + 1:
-            seen_images = 0
+        if (epoch + 1) % arguments.epochsperstage == 0 and current_stage < arguments.stopstage:
+            alpha.assign(0.0)
             current_stage += 1
             train_dataset, _ = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",
@@ -236,6 +252,7 @@ def train(arguments):
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen = celeb_a_generator(
                 input_tensor=None,
+                alpha=alpha,
                 noise_dim=arguments.noisedim,
                 start_stage=arguments.startstage,
                 stop_stage=current_stage,
@@ -243,6 +260,7 @@ def train(arguments):
             )
             _model_dis = celeb_a_discriminator(
                 input_tensor=None,
+                alpha=alpha,
                 noise_dim=arguments.noisedim,
                 start_stage=arguments.startstage,
                 stop_stage=current_stage,
