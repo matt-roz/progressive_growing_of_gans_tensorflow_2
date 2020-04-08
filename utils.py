@@ -1,5 +1,6 @@
 import os
 from typing import Union
+import logging
 
 import tensorflow as tf
 import numpy as np
@@ -38,9 +39,9 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
         os.makedirs(directory, *args, **kwargs)
 
 
-def save_eval_images(random_noise, generator, epoch, stage, output_dir):
-    fixed_predictions = generator(random_noise, stage=stage, training=False).numpy()
-    rand_predictions = generator(tf.random.normal(shape=tf.shape(random_noise)), stage=stage, training=False).numpy()
+def save_eval_images(random_noise, generator, epoch, output_dir):
+    fixed_predictions = generator(random_noise, training=False).numpy()
+    rand_predictions = generator(tf.random.normal(shape=tf.shape(random_noise)), training=False).numpy()
     num_images, width, height, channels = fixed_predictions.shape  # 16, 128, 128, 3
 
     fixed_predictions = 255 * ((fixed_predictions + 1.0) / 2.0)
@@ -60,3 +61,17 @@ def save_eval_images(random_noise, generator, epoch, stage, output_dir):
     del fixed_predictions
     del rand_predictions
     del predictions
+
+
+def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model):
+    transferred_name_list = []
+    target_name_list = [layer.name for layer in target_model.layers if layer.name.startswith('block')]
+    for layer in source_model.layers:
+        _weights = layer.get_weights()
+        if layer.name.startswith('block') and layer.trainable and _weights:
+            target_layer = target_model.get_layer(name=layer.name)
+            target_layer.set_weights(weights=_weights)
+            transferred_name_list.append(layer.name)
+            target_name_list.remove(layer.name)
+    logging.info(f"transferred weights from {source_model.name} to {target_model.name} for {transferred_name_list}. "
+                 f"Following layers existed in {target_model.name} but not in {source_model.name} {target_name_list}")

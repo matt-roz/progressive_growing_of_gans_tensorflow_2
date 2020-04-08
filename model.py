@@ -1,4 +1,8 @@
+from typing import Optional, Dict, Sequence
+
+import numpy as np
 import tensorflow as tf
+from tensorflow.keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, LeakyReLU, Dense, Reshape
 
 
 class Generator(tf.keras.Model):
@@ -277,7 +281,21 @@ class Discriminator(tf.keras.Model):
         return x
 
 
-def celeb_a_generator(input_tensor, input_shape, **kwargs):
+def celeb_a_generator(
+        input_tensor,
+        input_shape: Optional[Sequence] = None,
+        noise_dim: int = 512,
+        start_stage: int = 2,
+        stop_stage: int = 10,
+        leaky_alpha: float = 0.2,
+        stage_features: Optional[Dict] = None,
+        name: str = 'celeb_a_generator',
+        *args,
+        **kwargs):
+    if stage_features is None:
+        stage_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
+    input_shape = input_shape or (noise_dim,)
+
     if input_tensor is None:
         inputs = tf.keras.layers.Input(shape=input_shape)
     else:
@@ -287,32 +305,46 @@ def celeb_a_generator(input_tensor, input_shape, **kwargs):
             inputs = input_tensor
 
     x = inputs
-    x = tf.keras.layers.Dense(512 * 4 * 4, use_bias=False)(x)
-    x = tf.keras.layers.Reshape((4, 4, 512))(x)
-    x = tf.keras.layers.Conv2DTranspose(256, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.Conv2DTranspose(128, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.Conv2DTranspose(64, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.Conv2DTranspose(32, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
-    x = tf.keras.layers.Conv2DTranspose(16, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.ReLU()(x)
-    # x = tf.keras.layers.Conv2DTranspose(8, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    # x = tf.keras.layers.BatchNormalization()(x)
-    # x = tf.keras.layers.ReLU()(x)
 
-    x = tf.keras.layers.Conv2D(3, kernel_size=(1, 1), strides=(1, 1), activation='tanh', padding='same')(x)
-    return tf.keras.models.Model(inputs=inputs, outputs=x, name='celeb_a_generator')
+    # project from noise to minimum image
+    _target_shape = (2 ** start_stage, 2 ** start_stage,  stage_features[start_stage])
+    _units = np.prod(_target_shape)
+    x = Dense(units=_units, use_bias=False, input_shape=(noise_dim,), name='block_s/dense_projector')(x)
+    x = Reshape(target_shape=_target_shape, input_shape=(_units,), name='block_s/feature_reshape')(x)
+
+    # build blocks
+    for stage in range(start_stage + 1, stop_stage + 1):
+        x = Conv2DTranspose(
+            filters=stage_features[stage],
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding='same',
+            use_bias=False,
+            input_shape=_target_shape,
+            name=f'block_{stage}/conv2dtranspose')(x)
+        x = BatchNormalization(input_shape=_target_shape, name=f'block_{stage}/bn')(x)
+        x = LeakyReLU(alpha=leaky_alpha, input_shape=_target_shape, name=f'block_{stage}/activation')(x)
+        _target_shape = (2 ** stage, 2 ** stage,  stage_features[stage])
+
+    x = Conv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), activation='tanh', padding='same',
+               input_shape=_target_shape, name='toRGB')(x)
+    return tf.keras.models.Model(inputs=inputs, outputs=x, name=name)
 
 
-def celeb_a_discriminator(input_tensor, input_shape, noise_stddev: float = 0.25, **kwargs):
+def celeb_a_discriminator(
+        input_tensor,
+        input_shape: Optional[Sequence] = None,
+        start_stage: int = 2,
+        stop_stage: int = 10,
+        leaky_alpha: float = 0.2,
+        stage_features: Optional[Dict] = None,
+        name: str = 'celeb_a_discriminator',
+        *args,
+        **kwargs):
+    if stage_features is None:
+        stage_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
+    input_shape = input_shape or (2 ** stop_stage, 2 ** stop_stage, 3)
+
     if input_tensor is None:
         inputs = tf.keras.layers.Input(shape=input_shape)
     else:
@@ -322,28 +354,26 @@ def celeb_a_discriminator(input_tensor, input_shape, noise_stddev: float = 0.25,
             inputs = input_tensor
 
     x = inputs
-    # x = tf.keras.layers.Conv2D(16, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False)(x)
-    if noise_stddev != 0.0:
-        x = tf.keras.layers.GaussianNoise(stddev=noise_stddev)(x)
-        x = tf.clip_by_value(t=x, clip_value_min=0.0, clip_value_max=1.0)
-    # x = tf.keras.layers.Conv2D(16, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    # x = tf.keras.layers.BatchNormalization()(x)
-    # x = tf.keras.layers.LeakyReLU()(x)
-    x = tf.keras.layers.Conv2D(32, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.LeakyReLU()(x)
-    x = tf.keras.layers.Conv2D(64, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.LeakyReLU()(x)
-    x = tf.keras.layers.Conv2D(128, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.LeakyReLU()(x)
-    x = tf.keras.layers.Conv2D(256, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.LeakyReLU()(x)
-    x = tf.keras.layers.Conv2D(512, kernel_size=(5, 5), strides=(2, 2), padding='same', use_bias=False)(x)
-    x = tf.keras.layers.BatchNormalization()(x)
-    x = tf.keras.layers.LeakyReLU()(x)
-    x = tf.keras.layers.Flatten()(x)
-    x = tf.keras.layers.Dense(1)(x)
-    return tf.keras.models.Model(inputs=inputs, outputs=x, name='celeb_a_discriminator')
+
+    # from RGB
+    _target_shape = (2 ** stop_stage, 2 ** stop_stage, 3)
+    x = Conv2D(filters=stage_features[stop_stage], kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=False,
+               input_shape=_target_shape, name='fromRGB')(x)
+    _target_shape = (2 ** stop_stage, 2 ** stop_stage, stage_features[stop_stage])
+
+    for stage in reversed(range(start_stage, stop_stage)):
+        x = Conv2D(
+            filters=stage_features[stage],
+            kernel_size=(3, 3),
+            strides=(2, 2),
+            padding='same',
+            use_bias=False,
+            input_shape=_target_shape,
+            name=f'block_{stage}/conv2d')(x)
+        x = BatchNormalization(input_shape=_target_shape, name=f'block_{stage}/bn')(x)
+        x = LeakyReLU(alpha=leaky_alpha, input_shape=_target_shape, name=f'block_{stage}/activation')(x)
+        _target_shape = (2 ** stage, 2 ** stage,  stage_features[stage])
+
+    x = tf.keras.layers.Flatten(name='block_f/flatten')(x)
+    x = tf.keras.layers.Dense(units=1, name='block_f/dense')(x)
+    return tf.keras.models.Model(inputs=inputs, outputs=x, name=name)
