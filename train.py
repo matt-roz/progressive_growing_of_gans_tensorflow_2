@@ -274,3 +274,17 @@ def train(arguments):
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
             model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
             save_eval_images(random_noise, model_gen, epoch, arguments.outdir, prefix=f'stage-{current_stage}-')
+            optimizer_gen = tf.keras.optimizers.Adam(
+                learning_rate=arguments.learningrate,
+                beta_1=arguments.beta1,
+                beta_2=arguments.beta2,
+                epsilon=arguments.epsilon,
+                name='adam_generator'
+            )
+            optimizer_dis = tf.keras.optimizers.Adam(
+                learning_rate=arguments.learningrate * arguments.discrepeats,
+                beta_1=arguments.beta1,
+                beta_2=arguments.beta2,
+                epsilon=arguments.epsilon,
+                name='adam_discriminator'
+            )
