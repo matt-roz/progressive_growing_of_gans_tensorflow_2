@@ -385,7 +385,7 @@ def celeb_a_discriminator(
 
 def generator_paper(
         input_tensor,
-        alpha: tf.Variable,
+        alpha_init: float = 0.0,
         input_shape: Optional[Sequence] = None,
         noise_dim: int = 512,
         start_stage: int = 2,
@@ -408,7 +408,9 @@ def generator_paper(
         else:
             inputs = input_tensor
 
+    # inputs and alpha
     x = inputs
+    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='generator_alpha')
 
     if normalize_latents:
         x = PixelNormalization(name='block_s/pixel_norm_noise')(x)
@@ -466,12 +468,12 @@ def generator_paper(
         _target_shape = (2 ** stage, 2 ** stage,  stage_features[stage])
 
     x = tf.nn.tanh(img_out)
-    return tf.keras.models.Model(inputs=inputs, outputs=x, name=name)
+    return tf.keras.models.Model(inputs=inputs, outputs=x, name=name), alpha
 
 
 def discriminator_paper(
         input_tensor,
-        alpha: tf.Variable,
+        alpha_init: float = 0.0,
         input_shape: Optional[Sequence] = None,
         start_stage: int = 2,
         stop_stage: int = 10,
@@ -510,6 +512,7 @@ def discriminator_paper(
         return _x
 
     # input block stop_stage
+    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='discriminator_alpha')
     img = inputs
     x = Conv2D(filters=stage_features[stop_stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
                kernel_initializer='he_normal', name=f'block_{stop_stage}/fromRGB')(inputs)
@@ -547,4 +550,4 @@ def discriminator_paper(
     x = Dense(units=1, use_bias=True, kernel_initializer='he_normal', name='block_1/dense_2')(x)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_1/activation_3')(x)
 
-    return tf.keras.models.Model(inputs=inputs, outputs=x, name=name)
+    return tf.keras.models.Model(inputs=inputs, outputs=x, name=name), alpha

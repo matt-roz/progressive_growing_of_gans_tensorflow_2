@@ -74,14 +74,9 @@ def train(arguments):
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # get model
-        alpha = tf.Variable(initial_value=0.0, trainable=False, dtype=tf.float32)
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
-        model_gen = generator_paper(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
-        model_dis = discriminator_paper(input_tensor=None, alpha=alpha, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
-        # model_gen = Generator(name='celeb_a_hq_generator')
-        # model_dis = Discriminator(name='celeb_a_hq_discriminator')
-        # model_gen.build(input_shape=(arguments.noisedim,), stage=arguments.stopstage)
-        # model_dis.build(input_shape=(arguments.maxresolution, arguments.maxresolution, 3), stage=arguments.stopstage)
+        model_gen, alpha_gen = generator_paper(input_tensor=None, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
+        model_dis, alpha_dis = discriminator_paper(input_tensor=None, start_stage=arguments.startstage, stop_stage=arguments.stopstage)
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
@@ -147,11 +142,14 @@ def train(arguments):
                     tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_current_step)
                     tf.summary.scalar(name="losses/batch/moving_epoch_mean/generator", data=_epoch_gen_loss, step=_current_step)
                     tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_current_step)
-                    tf.summary.scalar(name="model/batch/alpha", data=alpha, step=_current_step)
+                    tf.summary.scalar(name="model/batch/alpha_gen", data=alpha_gen, step=_current_step)
+                    tf.summary.scalar(name="model/batch/alpha_dis", data=alpha_dis, step=_current_step)
 
             # increase alpha
-            alpha.assign_add(alpha_step_per_image * _size)
-            alpha.assign(tf.minimum(alpha, 1.0))
+            alpha_gen.assign_add(alpha_step_per_image * _size)
+            alpha_gen.assign(tf.minimum(alpha_gen, 1.0))
+            alpha_dis.assign_add(alpha_step_per_image * _size)
+            alpha_dis.assign(tf.minimum(alpha_dis, 1.0))
 
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
@@ -181,17 +179,15 @@ def train(arguments):
         dataset_cache_file=arguments.cachefile
     )
     image_shape = train_dataset.element_spec.shape[1:]
-    model_gen = generator_paper(
+    model_gen, alpha_gen = generator_paper(
         input_tensor=None,
-        alpha=alpha,
         noise_dim=arguments.noisedim,
         start_stage=arguments.startstage,
         stop_stage=current_stage,
         name=f"pgan_celeb_a_hq_generator_{current_stage}"
     )
-    model_dis = discriminator_paper(
+    model_dis, alpha_dis = discriminator_paper(
         input_tensor=None,
-        alpha=alpha,
         noise_dim=arguments.noisedim,
         start_stage=arguments.startstage,
         stop_stage=current_stage,
@@ -214,7 +210,8 @@ def train(arguments):
                 tf.summary.scalar(name="train_speed/batches_per_second", data=tf.cast(steps_per_epoch, tf.float32)/epoch_duration, step=epoch)
                 tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
                 tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
-                tf.summary.scalar(name="model/epoch/alpha", data=alpha, step=epoch)
+                tf.summary.scalar(name="model/epoch/alpha_gen", data=alpha_gen, step=epoch)
+                tf.summary.scalar(name="model/epoch/alpha_dis", data=alpha_dis, step=epoch)
 
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
@@ -235,7 +232,6 @@ def train(arguments):
 
         # check stage increase
         if (epoch + 1) % arguments.epochsperstage == 0 and current_stage < arguments.stopstage:
-            alpha.assign(0.0)
             current_stage += 1
             train_dataset, _ = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",
@@ -253,24 +249,22 @@ def train(arguments):
             image_shape = train_dataset.element_spec.shape[1:]
             steps_per_epoch = int(arguments.numexamples // stage_batch_size[current_stage]) + 1
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
-            _model_gen = generator_paper(
+            _model_gen, alpha_gen = generator_paper(
                 input_tensor=None,
-                alpha=alpha,
                 noise_dim=arguments.noisedim,
                 start_stage=arguments.startstage,
                 stop_stage=current_stage,
                 name=f"pgan_celeb_a_hq_generator_{current_stage}"
             )
-            _model_dis = discriminator_paper(
+            _model_dis, alpha_dis = discriminator_paper(
                 input_tensor=None,
-                alpha=alpha,
                 noise_dim=arguments.noisedim,
                 start_stage=arguments.startstage,
                 stop_stage=current_stage,
                 name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
             )
-            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='')
-            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='')
+            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='block')
+            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='block')
             model_gen = _model_gen
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
