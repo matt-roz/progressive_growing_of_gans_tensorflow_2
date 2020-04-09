@@ -162,15 +162,16 @@ def train(arguments):
         return _epoch_gen_loss, _epoch_dis_loss, _image_count
 
     # train loop
-    steps_per_epoch = int(arguments.numexamples // arguments.globalbatchsize) + 1
     current_stage = arguments.startstage
     epochs = tqdm(iterable=range(arguments.epochs), desc=f'Progressive-GAN', unit='epoch')
+    stage_batch_size = {0: 128, 1: 128, 2: 128, 3: 64, 4: 48, 5: 32, 6: 24, 7: 20, 8: 16, 9: 10, 10: 6}
+    steps_per_epoch = int(arguments.numexamples // stage_batch_size[current_stage]) + 1
 
     train_dataset, _ = get_dataset_pipeline(
         name=f"celeb_a_hq/{2**current_stage}",
         split=arguments.split,
         data_dir=arguments.datadir,
-        batch_size=arguments.globalbatchsize,
+        batch_size=stage_batch_size[current_stage],
         buffer_size=arguments.buffersize,
         process_func=celeb_a_hq_process_func,
         map_parallel_calls=arguments.mapcalls,
@@ -240,7 +241,7 @@ def train(arguments):
                 name=f"celeb_a_hq/{2**current_stage}",
                 split=arguments.split,
                 data_dir=arguments.datadir,
-                batch_size=arguments.globalbatchsize,
+                batch_size=stage_batch_size[current_stage],
                 buffer_size=arguments.buffersize,
                 process_func=celeb_a_hq_process_func,
                 map_parallel_calls=arguments.mapcalls,
@@ -250,6 +251,7 @@ def train(arguments):
                 dataset_cache_file=arguments.cachefile
             )
             image_shape = train_dataset.element_spec.shape[1:]
+            steps_per_epoch = int(arguments.numexamples // stage_batch_size[current_stage]) + 1
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen = generator_paper(
                 input_tensor=None,

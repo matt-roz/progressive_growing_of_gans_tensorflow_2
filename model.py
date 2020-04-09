@@ -391,7 +391,7 @@ def generator_paper(
         start_stage: int = 2,
         stop_stage: int = 10,
         leaky_alpha: float = 0.2,
-        normalize_latents: bool = True,
+        normalize_latents: bool = False,
         stage_features: Optional[Dict] = None,
         name: str = 'pgan_celeb_a_hq_generator',
         *args,
