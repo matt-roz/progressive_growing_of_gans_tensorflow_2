@@ -63,21 +63,15 @@ def save_eval_images(random_noise, generator, epoch, output_dir, prefix=""):
     del predictions
 
 
-def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model):
+def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model, prefix: str = 'block'):
     transferred_name_list = []
-    missing_name_list = []
     for layer in source_model.layers:
         source_vars = layer.trainable_variables
-        if layer.name.startswith('block') and layer.trainable and source_vars:
-            try:
-                target_layer = target_model.get_layer(name=layer.name)
-            except ValueError:
-                missing_name_list.append(layer.name)
-                continue
+        if layer.name.startswith(prefix) and layer.trainable and source_vars:
+            target_layer = target_model.get_layer(name=layer.name)
             for source_var, target_var in zip(source_vars, target_layer.trainable_variables):
                 assert source_var.shape == target_var.shape
                 assert source_var.dtype == target_var.dtype
                 target_var.assign(source_var)
-                transferred_name_list.append(target_var.name)
-    logging.info(f"transferred variables from {source_model.name} to {target_model.name} for {transferred_name_list}. "
-                 f"Following layers were not transferred {missing_name_list}")
+                transferred_name_list.append(f"{source_var.name} -> {target_var.name}")
+    logging.info(f"transferred variables from {source_model.name} to {target_model.name}: {transferred_name_list}")
