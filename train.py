@@ -269,8 +269,8 @@ def train(arguments):
                 stop_stage=current_stage,
                 name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
             )
-            transfer_weights(source_model=model_gen, target_model=_model_gen)
-            transfer_weights(source_model=model_dis, target_model=_model_dis)
+            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='')
+            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='')
             model_gen = _model_gen
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])

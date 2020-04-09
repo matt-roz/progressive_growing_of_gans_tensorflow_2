@@ -68,7 +68,11 @@ def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model,
     for layer in source_model.layers:
         source_vars = layer.trainable_variables
         if layer.name.startswith(prefix) and layer.trainable and source_vars:
-            target_layer = target_model.get_layer(name=layer.name)
+            try:
+                target_layer = target_model.get_layer(name=layer.name)
+            except ValueError:
+                logging.info(f"{layer.name} found in {source_model.name} but not in {target_model.name}")
+                continue
             for source_var, target_var in zip(source_vars, target_layer.trainable_variables):
                 assert source_var.shape == target_var.shape
                 assert source_var.dtype == target_var.dtype
