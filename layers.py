@@ -26,10 +26,14 @@ class PixelNormalization(tf.keras.layers.Layer):
         self._axis = -1 if self._data_format in ['channel_last', 'NHWC'] else 1
 
     def call(self, inputs, **kwargs):
+<<<<<<< HEAD
         return inputs * tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=self._axis, keepdims=True) + self._epsilon)
 
     def get_config(self):
         return {'epsilon': self._epsilon, 'data_format': self._data_format}
+=======
+        return inputs * tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=3, keepdims=True) + self._epsilon)
+>>>>>>> 3ab9c77d3207337bd3a986b1100da49dc05f2e20
 
 
 class StandardDeviationLayer(tf.keras.layers.Layer):

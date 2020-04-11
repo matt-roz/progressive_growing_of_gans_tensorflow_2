@@ -390,6 +390,7 @@ def generator_paper(
         noise_dim: int = 512,
         start_stage: int = 2,
         stop_stage: int = 10,
+        use_bias: bool = False,
         leaky_alpha: float = 0.2,
         normalize_latents: bool = False,
         stage_features: Optional[Dict] = None,
@@ -417,22 +418,22 @@ def generator_paper(
     # project from noise to minimum image
     _target_shape = (2 ** start_stage, 2 ** start_stage,  stage_features[start_stage])
     _units = np.prod(_target_shape)
-    x = Dense(units=_units, use_bias=True, kernel_initializer='he_normal', input_shape=(noise_dim,),
+    x = Dense(units=_units, use_bias=use_bias, kernel_initializer='he_normal', input_shape=(noise_dim,),
               name='block_s/dense_projector')(x)
     x = Reshape(target_shape=_target_shape, input_shape=(_units,), name='block_s/feature_reshape')(x)
     x = LeakyReLU(alpha=leaky_alpha, name='block_s/activation')(x)
     x = PixelNormalization(name='block_s/pixel_norm')(x)
 
     # block 2
-    x = Conv2D(filters=stage_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+    x = Conv2D(filters=stage_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                kernel_initializer='he_normal', input_shape=_target_shape, name='block_2/conv2d_1')(x)
     x = LeakyReLU(alpha=leaky_alpha, name='block_2/activation_1')(x)
     x = PixelNormalization(name='block_2/pixel_norm_1')(x)
-    x = Conv2D(filters=stage_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+    x = Conv2D(filters=stage_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                kernel_initializer='he_normal', input_shape=_target_shape, name='block_2/conv2d_2')(x)
     x = LeakyReLU(alpha=leaky_alpha, name='block_2/activation_2')(x)
     x = PixelNormalization(name='block_2/pixel_norm_2')(x)
-    img_out = Conv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=True,
+    img_out = Conv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=use_bias,
                      kernel_initializer='he_normal', input_shape=_target_shape, name='block_2/toRGB')(x)
 
     # build 3 - till end
@@ -443,17 +444,17 @@ def generator_paper(
         img_out = up(img_out)
 
         # apply conv block on current feature map (x)
-        x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+        x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                    kernel_initializer='he_normal', input_shape=_target_shape, name=f'block_{stage}/conv2d_1')(x)
         x = LeakyReLU(alpha=leaky_alpha, input_shape=_target_shape, name=f'block_{stage}/activation_1')(x)
         x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(x)
-        x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+        x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                    kernel_initializer='he_normal', input_shape=_target_shape, name=f'block_{stage}/conv2d_2')(x)
         x = LeakyReLU(alpha=leaky_alpha, input_shape=_target_shape, name=f'block_{stage}/activation_2')(x)
         x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(x)
 
         # get image for current block
-        img = Conv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=True,
+        img = Conv2D(filters=3, kernel_size=(1, 1), strides=(1, 1), padding='same', use_bias=use_bias,
                      kernel_initializer='he_normal', input_shape=_target_shape, name=f'block_{stage}/toRGB')(x)
 
         # compose image from upscaled previous image (img_out) and current image (img) if last stage
@@ -478,6 +479,7 @@ def discriminator_paper(
         start_stage: int = 2,
         stop_stage: int = 10,
         leaky_alpha: float = 0.2,
+        use_bias: bool = False,
         mbstd_group_size: int = 4,
         stage_features: Optional[Dict] = None,
         name: str = 'pgan_celeb_a_hq_discriminator',
@@ -496,16 +498,16 @@ def discriminator_paper(
             inputs = input_tensor
 
     def from_rgb(value: tf.Tensor, stage: int):
-        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                     kernel_initializer='he_normal', name=f'block_{stage}/fromRGB')(value)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation')(_x)
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                     kernel_initializer='he_normal', name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                     kernel_initializer='he_normal', name=f'block_{stage}/conv2d_2')(value)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_2')(_x)
         _x = Downscale2D(factor=2, name=f'block_{stage}/activation_2')(_x)
@@ -514,17 +516,17 @@ def discriminator_paper(
     # input block stop_stage
     alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='discriminator_alpha')
     img = inputs
-    x = Conv2D(filters=stage_features[stop_stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+    x = Conv2D(filters=stage_features[stop_stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                kernel_initializer='he_normal', name=f'block_{stop_stage}/fromRGB')(inputs)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stop_stage}/activation')(x)
 
     for current_stage in range(stop_stage, start_stage, -1):
         # apply conv block to feature map (x)
         x = Conv2D(filters=stage_features[current_stage], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                   use_bias=True, kernel_initializer='he_normal', name=f'block_{current_stage}/conv2d_1')(x)
+                   use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{current_stage}/conv2d_1')(x)
         x = LeakyReLU(alpha=leaky_alpha, name=f'block_{current_stage}/activation_1')(x)
         x = Conv2D(filters=stage_features[current_stage-1], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                   use_bias=True, kernel_initializer='he_normal', name=f'block_{current_stage}/conv2d_2')(x)
+                   use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{current_stage}/conv2d_2')(x)
         x = LeakyReLU(alpha=leaky_alpha, name=f'block_{current_stage}/activation_2')(x)
 
         # downscale previous image (img) and feature map of current block
@@ -535,19 +537,19 @@ def discriminator_paper(
         if current_stage == stop_stage:
             img = down(img)
             y = Conv2D(filters=stage_features[current_stage-1], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                       use_bias=True, kernel_initializer='he_normal', name=f'block_{current_stage-1}/fromRGB')(img)
+                       use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{current_stage-1}/fromRGB')(img)
             feat_alpha_down = tf.multiply(1 - alpha, y, name=f'block_{current_stage-1}/alpha_downscaled_features')
             feat_alpha_block = tf.multiply(alpha, x, name=f'block_{current_stage-1}/alpha_block_features')
             x = tf.add(feat_alpha_down, feat_alpha_block, name=f'block_{current_stage-1}/alpha_composite_features')
 
     # final block 1
-    x = Conv2D(filters=stage_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=True,
+    x = Conv2D(filters=stage_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
                kernel_initializer='he_normal', name=f'block_1/conv2d_1')(x)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_1/activation_1')(x)
     x = Flatten(name='block_1/flatten')(x)
-    x = Dense(units=512, use_bias=True, kernel_initializer='he_normal', name='block_1/dense_1')(x)
+    x = Dense(units=512, use_bias=use_bias, kernel_initializer='he_normal', name='block_1/dense_1')(x)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_1/activation_2')(x)
-    x = Dense(units=1, use_bias=True, kernel_initializer='he_normal', name='block_1/dense_2')(x)
+    x = Dense(units=1, use_bias=use_bias, kernel_initializer='he_normal', name='block_1/dense_2')(x)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_1/activation_3')(x)
 
     return tf.keras.models.Model(inputs=inputs, outputs=x, name=name), alpha
