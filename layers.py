@@ -29,7 +29,7 @@ class PixelNormalization(tf.keras.layers.Layer):
         self._epsilon = epsilon  # tf.Variable(initial_value=epsilon, trainable=False, dtype=tf.float32)
 
     def call(self, inputs, **kwargs):
-        return inputs * tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=1, keepdims=True) + self._epsilon)
+        return inputs * tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=3, keepdims=True) + self._epsilon)
 
 
 class StandardDeviationLayer(tf.keras.layers.Layer):
