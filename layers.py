@@ -1,35 +1,35 @@
 import tensorflow as tf
 
 
-class Upscale2D(tf.keras.layers.Layer):
-    def __init__(self, factor: int = 2, *args, **kwargs):
+class Downsampling2D(tf.keras.layers.Layer):
+    def __init__(self, factor: int = 2, data_format: str = 'channel_last', *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert isinstance(factor, int) and factor >= 1
-        self._factor = tf.Variable(initial_value=factor, trainable=False, dtype=tf.int32)
+        assert data_format in ['channel_last', 'channel_first', 'NHWC', 'NCHW']
+        self._factor = factor
+        self._data_format = data_format
+        self._kernel = [1, self._factor, self._factor, 1]
 
     def call(self, inputs, **kwargs):
-        s = tf.shape(inputs)
-        x = tf.image.resize(inputs, (s[1]*self._factor, s[2]*self._factor), method=tf.image.ResizeMethod.NEAREST_NEIGHBOR)
-        return x
+        return tf.nn.avg_pool(input=inputs, ksize=self._kernel, strides=self._kernel, padding='VALID',
+                              data_format=self._data_format)
 
-
-class Downscale2D(tf.keras.layers.Layer):
-    def __init__(self, factor: int = 2, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        assert isinstance(factor, int) and factor >= 1
-        self._kernel = [1, factor, factor, 1]
-
-    def call(self, inputs, **kwargs):
-        return tf.nn.avg_pool(input=inputs, ksize=self._kernel, strides=self._kernel, padding='VALID')
+    def get_config(self):
+        return {'factor': self._factor, 'data_format': self._data_format}
 
 
 class PixelNormalization(tf.keras.layers.Layer):
-    def __init__(self, epsilon: float = 1e-8, *args, **kwargs):
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._epsilon = epsilon  # tf.Variable(initial_value=epsilon, trainable=False, dtype=tf.float32)
+        self._epsilon = epsilon
+        self._data_format = data_format
+        self._axis = -1 if self._data_format in ['channel_last', 'NHWC'] else 1
 
     def call(self, inputs, **kwargs):
-        return inputs * tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=1, keepdims=True) + self._epsilon)
+        return inputs * tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=self._axis, keepdims=True) + self._epsilon)
+
+    def get_config(self):
+        return {'epsilon': self._epsilon, 'data_format': self._data_format}
 
 
 class StandardDeviationLayer(tf.keras.layers.Layer):
@@ -48,22 +48,3 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         y = tf.reduce_mean(y, axis=[1, 2, 3], keepdims=True)    # [M111]  Take average over fmaps and pixels.
         y = tf.tile(y, [group_size, 1, s[2], s[3]])             # [NHW1]  Replicate over group and pixels.
         return tf.concat([x, y], axis=1)                       # [NHWC]  Append as new fmap.
-
-
-if __name__ == '__main__':
-    from PIL import Image
-    import numpy as np
-    img = Image.open('flower.jpg')
-    img.show('original')
-
-    flower = np.array(img)
-    flower = flower.astype(dtype=np.float32) / 255.0
-    flowers = np.empty(shape=(2, 900, 900, 3), dtype=np.float32)
-    flowers[0, :] = flower[:]
-    flowers[1, :] = flower[:]
-
-    val = StandardDeviationLayer()
-
-    d = val(flowers)
-
-    print(d.shape)
