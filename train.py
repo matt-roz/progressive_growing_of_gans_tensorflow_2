@@ -277,7 +277,7 @@ def train(arguments):
             final_gen.save(filepath=fin_file)
 
         # update log files and tqdm status message
-        status_message = f"sec={epoch_duration:.3f}, gen_loss={gen_loss:.3f}, dis_loss={dis_loss:.3f}"
+        status_message = f"sec={epoch_duration:.3f}, gen_loss={gen_loss:.3f}, dis_loss={tf.reduce_sum(dis_loss):.3f}"
         logging.info(f"finished epoch-{epoch+1:04d} with {status_message}")
         epochs.set_postfix_str(status_message)
 
