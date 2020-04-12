@@ -1,14 +1,13 @@
 import os
 import time
-import math
 import logging
-from typing import Union, Optional, Tuple, Callable, Dict
+from typing import Union, Optional, Tuple, Callable
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
 from tqdm import tqdm
 
-from model import celeb_a_discriminator, celeb_a_generator, Generator, Discriminator, generator_paper, discriminator_paper
+from model import generator_paper, discriminator_paper
 from utils import save_eval_images, transfer_weights
 
 
@@ -119,7 +118,7 @@ def train(arguments):
 
     def epoch_step(dataset, num_epoch, num_steps):
         # return metrics
-        _epoch_gen_loss, _epoch_dis_loss, _image_count, _step = 0.0, 0.0, 0.0, 0
+        _epoch_gen_loss, _epoch_dis_loss, _image_count, _current_step = 0.0, 0.0, 0.0, 0
 
         # epoch iterable, chief iterates over tqdm for status prints - all other workers over tf.data.Dataset
         dataset = tqdm(iterable=dataset, desc=f"epoch-{num_epoch + 1:04d}", unit="batch", total=num_steps, leave=False)
@@ -136,40 +135,40 @@ def train(arguments):
 
             # TensorBoard logging
             if arguments.logging and arguments.logfrequency == 'batch':
-                _current_step = optimizer_gen.iterations  # num_epoch * num_steps + _step
-                with arguments.summary.as_default():
-                    tf.summary.scalar(name="losses/batch/generator", data=batch_gen_loss, step=_current_step)
-                    tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_current_step)
-                    tf.summary.scalar(name="losses/batch/moving_epoch_mean/generator", data=_epoch_gen_loss, step=_current_step)
-                    tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_current_step)
-                    tf.summary.scalar(name="model/batch/alpha_gen", data=alpha_gen, step=_current_step)
-                    tf.summary.scalar(name="model/batch/alpha_dis", data=alpha_dis, step=_current_step)
+                _step = num_epoch * num_steps + _current_step
+                tf.summary.scalar(name="losses/batch/generator", data=batch_gen_loss, step=_step)
+                tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_step)
+                tf.summary.scalar(name="losses/batch/moving_epoch_mean/generator", data=_epoch_gen_loss, step=_step)
+                tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_step)
+                tf.summary.scalar(name="model/batch/alpha_gen", data=alpha_gen, step=_step)
+                tf.summary.scalar(name="model/batch/alpha_dis", data=alpha_dis, step=_step)
 
             # increase alpha
-            alpha_gen.assign_add(alpha_step_per_image * _size)
-            alpha_gen.assign(tf.minimum(alpha_gen, 1.0))
-            alpha_dis.assign_add(alpha_step_per_image * _size)
-            alpha_dis.assign(tf.minimum(alpha_dis, 1.0))
+            if arguments.usealphasmoothing:
+                alpha_gen.assign_add(alpha_step_per_image * _size)
+                alpha_gen.assign(tf.minimum(alpha_gen, 1.0))
+                alpha_dis.assign_add(alpha_step_per_image * _size)
+                alpha_dis.assign(tf.minimum(alpha_dis, 1.0))
 
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
             dataset.set_postfix_str(batch_status_message)
             logging.debug(batch_status_message)
-            _step += 1
+            _current_step += 1
 
         return _epoch_gen_loss, _epoch_dis_loss, _image_count
 
     # train loop
     current_stage = arguments.startstage
-    epochs = tqdm(iterable=range(arguments.epochs), desc=f'Progressive-GAN', unit='epoch')
-    stage_batch_size = {0: 128, 1: 128, 2: 128, 3: 64, 4: 48, 5: 32, 6: 24, 7: 20, 8: 16, 9: 10, 10: 6}
-    steps_per_epoch = int(arguments.numexamples // stage_batch_size[current_stage]) + 1
+    epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
+    stage_to_batch_size = {0: 128, 1: 128, 2: 128, 3: 64, 4: 48, 5: 32, 6: 24, 7: 20, 8: 16, 9: 10, 10: 6}
+    steps_per_epoch = int(arguments.numexamples // stage_to_batch_size[current_stage]) + 1
 
     train_dataset, _ = get_dataset_pipeline(
         name=f"celeb_a_hq/{2**current_stage}",
         split=arguments.split,
         data_dir=arguments.datadir,
-        batch_size=stage_batch_size[current_stage],
+        batch_size=stage_to_batch_size[current_stage],
         buffer_size=arguments.buffersize,
         process_func=celeb_a_hq_process_func,
         map_parallel_calls=arguments.mapcalls,
@@ -182,11 +181,17 @@ def train(arguments):
     model_gen, alpha_gen = generator_paper(
         noise_dim=arguments.noisedim,
         stop_stage=current_stage,
+        use_bias=arguments.usebias,
+        use_weight_scaling=arguments.useweightscaling,
+        use_alpha_smoothing=arguments.alphasmoothing,
         name=f"pgan_celeb_a_hq_generator_{current_stage}"
     )
     model_dis, alpha_dis = discriminator_paper(
         input_shape=image_shape,
         stop_stage=current_stage,
+        use_bias=arguments.usebias,
+        use_weight_scaling=arguments.useweightscaling,
+        use_alpha_smoothing=arguments.alphasmoothing,
         name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
     )
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
@@ -200,14 +205,14 @@ def train(arguments):
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
-            with arguments.summary.as_default():
-                tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
-                tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
-                tf.summary.scalar(name="train_speed/batches_per_second", data=tf.cast(steps_per_epoch, tf.float32)/epoch_duration, step=epoch)
-                tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
-                tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
-                tf.summary.scalar(name="model/epoch/alpha_gen", data=alpha_gen, step=epoch)
-                tf.summary.scalar(name="model/epoch/alpha_dis", data=alpha_dis, step=epoch)
+            batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
+            tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
+            tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
+            tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
+            tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
+            tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
+            tf.summary.scalar(name="model/epoch/alpha_gen", data=alpha_gen, step=epoch)
+            tf.summary.scalar(name="model/epoch/alpha_dis", data=alpha_dis, step=epoch)
 
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
@@ -215,15 +220,15 @@ def train(arguments):
 
         # save model checkpoints
         if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
-            str_image_shape = 'x'.join([str(x) for x in image_shape])
-            gen_file = os.path.join(arguments.outdir, f"{model_gen.name}-epoch-{epoch+1:04d}-shape-{str_image_shape}.h5")
-            dis_file = os.path.join(arguments.outdir, f"{model_dis.name}-epoch-{epoch+1:04d}-shape-{str_image_shape}.h5")
+            str_shape = 'x'.join([str(x) for x in image_shape])
+            gen_file = os.path.join(arguments.outdir, f"{model_gen.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
+            dis_file = os.path.join(arguments.outdir, f"{model_dis.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
             model_gen.save(filepath=gen_file)
             model_dis.save(filepath=dis_file)
 
         # update log files and tqdm status message
         status_message = f"sec={epoch_duration:.3f}, gen_loss={gen_loss:.3f}, dis_loss={dis_loss:.3f}"
-        logging.info(f"finished epoch-{epoch + 1:04d} with {status_message}")
+        logging.info(f"finished epoch-{epoch+1:04d} with {status_message}")
         epochs.set_postfix_str(status_message)
 
         # check stage increase
@@ -233,7 +238,7 @@ def train(arguments):
                 name=f"celeb_a_hq/{2**current_stage}",
                 split=arguments.split,
                 data_dir=arguments.datadir,
-                batch_size=stage_batch_size[current_stage],
+                batch_size=stage_to_batch_size[current_stage],
                 buffer_size=arguments.buffersize,
                 process_func=celeb_a_hq_process_func,
                 map_parallel_calls=arguments.mapcalls,
@@ -243,16 +248,22 @@ def train(arguments):
                 dataset_cache_file=arguments.cachefile
             )
             image_shape = train_dataset.element_spec.shape[1:]
-            steps_per_epoch = int(arguments.numexamples // stage_batch_size[current_stage]) + 1
+            steps_per_epoch = int(arguments.numexamples // stage_to_batch_size[current_stage]) + 1
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen, alpha_gen = generator_paper(
                 noise_dim=arguments.noisedim,
                 stop_stage=current_stage,
+                use_bias=arguments.usebias,
+                use_weight_scaling=arguments.useweightscaling,
+                use_alpha_smoothing=arguments.alphasmoothing,
                 name=f"pgan_celeb_a_hq_generator_{current_stage}"
             )
             _model_dis, alpha_dis = discriminator_paper(
                 input_shape=image_shape,
                 stop_stage=current_stage,
+                use_bias=arguments.usebias,
+                use_weight_scaling=arguments.useweightscaling,
+                use_alpha_smoothing=arguments.alphasmoothing,
                 name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
             )
             transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='block')

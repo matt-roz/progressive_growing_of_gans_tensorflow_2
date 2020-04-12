@@ -30,7 +30,7 @@ if __name__ == '__main__':
     tf_strategy_choices = ['default', 'mirrored', 'multimirrored']
     log_level_choices = ['INFO', 'CRITICAL', 'ERROR', 'WARNING', 'DEBUG', 'NOTSET']
     data_split_choices = ['train', 'test', 'validation']
-    resolution_choices = [2**i for i in range(11)]
+    resolution_choices = [2**i for i in range(2, 11)]
 
     # input directories
     dir_parser = parser.add_argument_group(title="directory arguments")
@@ -49,17 +49,21 @@ if __name__ == '__main__':
     model_parser = parser.add_argument_group(title="model arguments")
     model_parser.add_argument('--epochs', dest='epochs', type=int, default=25,
                               help="depicts default number of epochs to train for (default: '%(default)s')")
-    model_parser.add_argument('--min-resolution', dest='minresolution', type=int, choices=resolution_choices,
-                              default=resolution_choices[2], help="starting resolution for progressive GAN "
-                              "(default: '%(default)s')")
-    model_parser.add_argument('--max-resolution', dest='maxresolution', type=int, choices=resolution_choices,
+    model_parser.add_argument('--epochs-per-stage', dest='epochsperstage', type=int, default=10,
+                              help="epochs until stage is increased (default: '%(default)s')")
+    model_parser.add_argument('--leaky-alpha', dest='leakyalpha', type=float, default=0.2,
+                              help="alpha for LeakyReLU activations (default: '%(default)s')")
+    model_parser.add_argument('--resolution', dest='resolution', type=int, choices=resolution_choices,
                               default=resolution_choices[-1], help="stopping resolution for progressive GAN "
                               "(default: '%(default)s')")
     model_parser.add_argument('--noise-dim', dest="noisedim", type=int, default=512,
                               help="noise dim for generator to create images from (default: '%(default)s')")
-    model_parser.add_argument('--epochs-per-stage', dest='epochsperstage', type=int, default=10,
-                              help="epochs until stage is increased (default: '%(default)s')")
-
+    model_parser.add_argument('--no-bias', dest='usebias', type=bool, action='store_false', default=True,
+                              help="deactivates use of bias in all layers")
+    model_parser.add_argument('--no-weight-scaling', dest='useweightscaling', action='store_false', default=True,
+                              help="deactivates use of weight scaling")
+    model_parser.add_argument('--no-alpha-smoothing', dest='usealphasmoothing', action='store_false', default=True,
+                              help="deactivates last block alpha smoothing")
     # batch_size input
     batch_size_group = model_parser.add_mutually_exclusive_group(required=True)
     batch_size_group.add_argument('--batch-size', dest='globalbatchsize', type=int, default=0,
@@ -215,8 +219,8 @@ if __name__ == '__main__':
     args.host = host
     args.summary = tf.summary.create_file_writer(args.logdir)
     args.numexamples = 30000
-    args.startstage = int(math.log2(args.minresolution))
-    args.stopstage = int(math.log2(args.maxresolution))
+    args.startstage = 2
+    args.stopstage = int(math.log2(args.resolution))
 
     # chief creates directories as well as logfile
     if args.is_chief and args.logging:
@@ -236,9 +240,6 @@ if __name__ == '__main__':
     if args.is_chief and (args.saving or args.evaluate):
         create_directory(args.outdir)
 
-    # assert certain invalid inputs
-    assert args.minresolution <= args.maxresolution, f"--min-resolution must not exceed --max-resolution"
-
     # resolve caching file, log configuration for user (incorrect configuration might lead to OOM)
     if args.caching:
         if args.cachefile:
@@ -251,7 +252,8 @@ if __name__ == '__main__':
             logging.warning(msg)
 
     # start job
-    train(args)
+    with args.summary.as_default():
+        train(args)
 
     # job done
     print(f"{host}: {__name__} terminated")
