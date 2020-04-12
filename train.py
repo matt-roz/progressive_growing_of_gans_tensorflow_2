@@ -247,8 +247,10 @@ def train(arguments):
             str_shape = 'x'.join([str(x) for x in image_shape])
             gen_file = os.path.join(arguments.outdir, f"{model_gen.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
             dis_file = os.path.join(arguments.outdir, f"{model_dis.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
+            fin_file = os.path.join(arguments.outdir, f"{final_gen.name}-epoch-{epoch+1:04d}.h5")
             model_gen.save(filepath=gen_file)
             model_dis.save(filepath=dis_file)
+            final_gen.save(filepath=fin_file)
 
         # update log files and tqdm status message
         status_message = f"sec={epoch_duration:.3f}, gen_loss={gen_loss:.3f}, dis_loss={dis_loss:.3f}"
