@@ -183,7 +183,7 @@ def train(arguments):
     # train loop
     current_stage = arguments.startstage
     epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
-    batch_sizes = {0: 128, 1: 128, 2: 128, 3: 64, 4: 48, 5: 32, 6: 24, 7: 20, 8: 16, 9: 10, 10: 6}
+    batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 256, 5: 128, 6: 32, 7: 20, 8: 16, 9: 10, 10: 6}
     steps_per_epoch = int(arguments.numexamples // batch_sizes[current_stage]) + 1
 
     train_dataset, _ = get_dataset_pipeline(
