@@ -117,7 +117,7 @@ def train(arguments):
 
         # gradient penalty
         batch_size = tf.shape(real_images)[0]
-        mixing_factors = tf.random.normal([batch_size, 1, 1, 1], 0.0, 1.0)
+        mixing_factors = tf.random.uniform([batch_size, 1, 1, 1], 0.0, 1.0)
         mixed_images = real_images + (fake_images - real_images) * mixing_factors
 
         with tf.GradientTape() as disc_tape:
