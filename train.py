@@ -63,7 +63,7 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.epsilon,
             name='adam_generator',
-            # clipvalue=0.01
+            clipvalue=0.01
         )
         optimizer_dis = tf.keras.optimizers.Adam(
             learning_rate=arguments.learningrate * arguments.discrepeats,
@@ -71,7 +71,7 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.epsilon,
             name='adam_discriminator',
-            # clipvalue=0.01
+            clipvalue=0.01
         )
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
@@ -158,19 +158,12 @@ def train(arguments):
                 tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_step)
                 tf.summary.scalar(name="losses/batch/moving_epoch_mean/generator", data=_epoch_gen_loss, step=_step)
                 tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_step)
-                # tf.summary.scalar(name="model/batch/alpha_gen", data=alpha_gen, step=_step)
-                # tf.summary.scalar(name="model/batch/alpha_dis", data=alpha_dis, step=_step)
                 tf.summary.scalar(name="model/batch/alpha", data=arguments.alpha, step=_step)
 
             # increase alpha
             if arguments.usealphasmoothing:
                 arguments.alpha += alpha_step_per_image * _size
                 arguments.alpha = np.minimum(arguments.alpha, 1.0)
-
-                # alpha_gen.assign_add(alpha_step_per_image * _size)
-                # alpha_gen.assign(tf.minimum(alpha_gen, 1.0))
-                # alpha_dis.assign_add(alpha_step_per_image * _size)
-                # alpha_dis.assign(tf.minimum(alpha_dis, 1.0))
 
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
@@ -233,8 +226,6 @@ def train(arguments):
             tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
             tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
             tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
-            # tf.summary.scalar(name="model/epoch/alpha_gen", data=alpha_gen, step=epoch)
-            # tf.summary.scalar(name="model/epoch/alpha_dis", data=alpha_dis, step=epoch)
             tf.summary.scalar(name="model/epoch/alpha", data=arguments.alpha, step=epoch)
 
         # save eval images
@@ -303,7 +294,7 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.epsilon,
                 name='adam_generator',
-                # clipvalue=0.01
+                clipvalue=0.01
             )
             optimizer_dis = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learningrate * arguments.discrepeats,
@@ -311,5 +302,5 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.epsilon,
                 name='adam_discriminator',
-                # clipvalue=0.01
+                clipvalue=0.01
             )
