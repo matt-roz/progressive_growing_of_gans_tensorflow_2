@@ -122,13 +122,11 @@ def train(arguments):
 
         with tf.GradientTape() as disc_tape:
             disc_tape.watch(mixed_images)
-            mixed_output = model_dis([mixed_images, arguments.alpha], training=False)
-            mixed_loss = tf.reduce_sum(mixed_output)
+            mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
+            # mixed_loss = tf.reduce_sum(mixed_output)
 
-        mixed_grads = disc_tape.gradient(mixed_loss, model_dis.trainable_variables)
-        squared_grads = [tf.square(grad) for grad in mixed_grads]
-        summed_grads = tf.stack([tf.reduce_sum(grad) for grad in squared_grads])
-        mixed_norms = tf.reduce_mean(tf.sqrt(1e-8 + summed_grads))
+        mixed_grads = disc_tape.gradient(mixed_output, mixed_images)
+        mixed_norms = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(mixed_grads), axis=[1, 2, 3])))
         gradient_penalty = tf.square(mixed_norms - wgan_target)
         gradient_loss = gradient_penalty * (wgan_lambda / (wgan_target ** 2))
 
