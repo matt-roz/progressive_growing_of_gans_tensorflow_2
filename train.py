@@ -63,7 +63,7 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.epsilon,
             name='adam_generator',
-            clipvalue=0.01
+            # clipvalue=0.01
         )
         optimizer_dis = tf.keras.optimizers.Adam(
             learning_rate=arguments.learningrate * arguments.discrepeats,
@@ -71,7 +71,7 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.epsilon,
             name='adam_discriminator',
-            clipvalue=0.01
+            # clipvalue=0.01
         )
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
@@ -225,7 +225,7 @@ def train(arguments):
         epoch_duration = time.time() - epoch_start_time
 
         # smooth weights into final generator
-        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999, log_info=True)
+        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999)
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
@@ -306,7 +306,7 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.epsilon,
                 name='adam_generator',
-                clipvalue=0.01
+                # clipvalue=0.01
             )
             optimizer_dis = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learningrate * arguments.discrepeats,
@@ -314,5 +314,5 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.epsilon,
                 name='adam_discriminator',
-                clipvalue=0.01
+                # clipvalue=0.01
             )
