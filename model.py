@@ -26,7 +26,7 @@ def generator_paper(
     if input_shape is None:
         input_shape = (noise_dim,)
     inputs = tf.keras.layers.Input(shape=input_shape)
-    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='generator_alpha')
+    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name=f'generator_alpha_{stop_stage}')
 
     # define building blocks
     def to_rgb(value: tf.Tensor, stage: int):
@@ -103,7 +103,7 @@ def discriminator_paper(
     if input_shape is None:
         input_shape = (2 ** stop_stage, 2 ** stop_stage, 3)
     inputs = tf.keras.layers.Input(shape=input_shape)
-    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='discriminator_alpha')
+    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name=f'discriminator_alpha_{stop_stage}')
 
     def from_rgb(value: tf.Tensor, stage: int):
         _x = Conv2D(filters=num_features[stage], kernel_size=(1, 1), strides=(1, 1), use_bias=use_bias,
