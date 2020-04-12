@@ -35,16 +35,7 @@ class PixelNormalization(tf.keras.layers.Layer):
 class StandardDeviationLayer(tf.keras.layers.Layer):
     def __init__(self, group_size: int = 4, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self._group_size = tf.Variable(initial_value=group_size, trainable=False, dtype=tf.int32)
+        raise NotImplementedError()
 
     def call(self, inputs, **kwargs):
-        x = inputs
-        group_size = tf.minimum(self._group_size, tf.shape(x)[0])     # Minibatch must be divisible by (or smaller than) group_size.
-        s = x.shape                                             # [NHWC]  Input shape.
-        y = tf.reshape(x, [group_size, -1, s[1], s[2], s[3]])   # [GMHWC] Split minibatch into M groups of size G.
-        y -= tf.reduce_mean(y, axis=0, keepdims=True)           # [GMHWC] Subtract mean over group.
-        y = tf.reduce_mean(tf.square(y), axis=0)                # [MHWC]  Calc variance over group.
-        y = tf.sqrt(y + 1e-8)                                   # [MHWC]  Calc stddev over group.
-        y = tf.reduce_mean(y, axis=[1, 2, 3], keepdims=True)    # [M111]  Take average over fmaps and pixels.
-        y = tf.tile(y, [group_size, 1, s[2], s[3]])             # [NHW1]  Replicate over group and pixels.
-        return tf.concat([x, y], axis=1)                       # [NHWC]  Append as new fmap.
+        return inputs
