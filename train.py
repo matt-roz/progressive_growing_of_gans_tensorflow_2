@@ -95,14 +95,19 @@ def train(arguments):
     # local tf.function definitions for fast graphmode execution
     @tf.function
     def discriminator_loss(real_output, fake_output):
-        real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
-        fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
-        total_loss = real_loss + fake_loss
+        # real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
+        # fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
+        # total_loss = real_loss + fake_loss
+        # return total_loss
+        real_loss = tf.reduce_mean(real_output)
+        fake_loss = tf.reduce_mean(fake_output)
+        total_loss = fake_loss - real_loss
         return total_loss
 
     @tf.function
     def generator_loss(fake_output):
-        return tf_loss_obj(tf.ones_like(fake_output), fake_output)
+        # return tf_loss_obj(tf.ones_like(fake_output), fake_output)
+        return -tf.reduce_mean(fake_output)
 
     def train_step(image_batch, local_batch_size):
         # generate noise for projecting fake images
