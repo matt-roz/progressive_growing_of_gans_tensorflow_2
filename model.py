@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, LeakyReLU, Dense, Reshape, UpSampling2D, Flatten
 
-from layers import PixelNormalization, DownSampling2D
+from layers import PixelNormalization, DownSampling2D, StandardDeviationLayer
 
 class Generator(tf.keras.Model):
     def __init__(self, start_stage=None, end_stage=None, activation_alpha: float = 0.2, *args, **kwargs):
@@ -453,6 +453,8 @@ def generator_paper(
         # alpha smooth features from current block into features from previous block image
         if use_alpha_smoothing and current_stage == stop_stage:
             image_out = image_out + (image - image_out) * alpha
+        else:
+            image_out = image
 
     x = tf.nn.tanh(image_out, name='block_f/activation')
     return tf.keras.models.Model(inputs=inputs, outputs=x, name=name), alpha
@@ -513,8 +515,9 @@ def discriminator_paper(
             features = features_image + (features - features_image) * alpha
 
     # final block 2
+    x = StandardDeviationLayer(name=f'block_2/stddev_layer')(features)
     x = Conv2D(filters=stage_to_num_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
-               kernel_initializer='he_normal', name=f'block_2/conv2d_1')(features)
+               kernel_initializer='he_normal', name=f'block_2/conv2d_1')(x)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_2/activation_1')(x)
     x = Flatten(name='block_2/flatten')(x)
     x = Dense(units=512, use_bias=use_bias, kernel_initializer='he_normal', name='block_2/dense_1')(x)
