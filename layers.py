@@ -2,10 +2,10 @@ import tensorflow as tf
 
 
 class Downsampling2D(tf.keras.layers.Layer):
-    def __init__(self, factor: int = 2, data_format: str = 'channel_last', *args, **kwargs):
+    def __init__(self, factor: int = 2, data_format: str = 'NHWC', *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert isinstance(factor, int) and factor >= 1
-        assert data_format in ['channel_last', 'channel_first', 'NHWC', 'NCHW']
+        assert data_format in ['NHWC', 'NCHW']
         self._factor = factor
         self._data_format = data_format
         self._kernel = [1, self._factor, self._factor, 1]
