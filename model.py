@@ -1,11 +1,10 @@
-from typing import Optional, Dict, Sequence
+from typing import Optional, Dict, Sequence, Tuple
 
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, Conv2DTranspose, BatchNormalization, LeakyReLU, Dense, Reshape, UpSampling2D, Flatten
 
-from layers import PixelNormalization, Upscale2D, Downscale2D
-
+from layers import PixelNormalization, Downsampling2D
 
 class Generator(tf.keras.Model):
     def __init__(self, start_stage=None, end_stage=None, activation_alpha: float = 0.2, *args, **kwargs):
@@ -384,7 +383,6 @@ def celeb_a_discriminator(
 
 
 def generator_paper(
-        input_tensor,
         alpha_init: float = 0.0,
         input_shape: Optional[Sequence] = None,
         noise_dim: int = 512,
@@ -399,19 +397,13 @@ def generator_paper(
         **kwargs):
     if stage_features is None:
         stage_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
-    input_shape = input_shape or (noise_dim,)
-
-    if input_tensor is None:
-        inputs = tf.keras.layers.Input(shape=input_shape)
-    else:
-        if not tf.keras.backend.is_keras_tensor(input_tensor):
-            inputs = tf.keras.layers.Input(tensor=input_tensor, shape=input_shape)
-        else:
-            inputs = input_tensor
+    if input_shape is not None:
+        input_shape = (noise_dim,)
+    inputs = tf.keras.layers.Input(shape=input_shape)
+    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='generator_alpha')
 
     # inputs and alpha
     x = inputs
-    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='generator_alpha')
 
     if normalize_latents:
         x = PixelNormalization(name='block_s/pixel_norm_noise')(x)
@@ -473,83 +465,66 @@ def generator_paper(
 
 
 def discriminator_paper(
-        input_tensor,
         alpha_init: float = 0.0,
         input_shape: Optional[Sequence] = None,
-        start_stage: int = 2,
         stop_stage: int = 10,
         leaky_alpha: float = 0.2,
-        use_bias: bool = False,
-        mbstd_group_size: int = 4,
-        stage_features: Optional[Dict] = None,
+        use_bias: bool = True,
+        use_weight_scaling: bool = True,
+        use_alpha_smoothing: bool = True,
+        stage_to_num_features: Optional[Dict] = None,
         name: str = 'pgan_celeb_a_hq_discriminator',
         *args,
-        **kwargs):
-    if stage_features is None:
-        stage_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
-    input_shape = input_shape or (2 ** stop_stage, 2 ** stop_stage, 3)
-
-    if input_tensor is None:
-        inputs = tf.keras.layers.Input(shape=input_shape)
-    else:
-        if not tf.keras.backend.is_keras_tensor(input_tensor):
-            inputs = tf.keras.layers.Input(tensor=input_tensor, shape=input_shape)
-        else:
-            inputs = input_tensor
+        **kwargs) -> Tuple[tf.keras.Model, tf.Variable]:
+    # default values
+    if stage_to_num_features is None:
+        stage_to_num_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
+    if input_shape is None:
+        input_shape = (2 ** stop_stage, 2 ** stop_stage, 3)
+    inputs = tf.keras.layers.Input(shape=input_shape)
+    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='discriminator_alpha')
 
     def from_rgb(value: tf.Tensor, stage: int):
-        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
+        _x = Conv2D(filters=stage_to_num_features[stage], kernel_size=(1, 1), strides=(1, 1), use_bias=use_bias,
                     kernel_initializer='he_normal', name=f'block_{stage}/fromRGB')(value)
-        _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation')(_x)
+        _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_rgb')(_x)
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
-                    kernel_initializer='he_normal', name=f'block_{stage}/conv2d_1')(value)
+        _x = Conv2D(filters=stage_to_num_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same',
+                    use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = Conv2D(filters=stage_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
-                    kernel_initializer='he_normal', name=f'block_{stage}/conv2d_2')(value)
+        _x = Conv2D(filters=stage_to_num_features[stage - 1], kernel_size=(3, 3), strides=(1, 1), padding='same',
+                    use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_2')(_x)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_2')(_x)
-        _x = Downscale2D(factor=2, name=f'block_{stage}/activation_2')(_x)
         return _x
 
     # input block stop_stage
-    alpha = tf.Variable(initial_value=alpha_init, trainable=False, dtype=tf.float32, name='discriminator_alpha')
-    img = inputs
-    x = Conv2D(filters=stage_features[stop_stage], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
-               kernel_initializer='he_normal', name=f'block_{stop_stage}/fromRGB')(inputs)
-    x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stop_stage}/activation')(x)
+    image = inputs
+    features = from_rgb(value=image, stage=stop_stage)
 
-    for current_stage in range(stop_stage, start_stage, -1):
-        # apply conv block to feature map (x)
-        x = Conv2D(filters=stage_features[current_stage], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                   use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{current_stage}/conv2d_1')(x)
-        x = LeakyReLU(alpha=leaky_alpha, name=f'block_{current_stage}/activation_1')(x)
-        x = Conv2D(filters=stage_features[current_stage-1], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                   use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{current_stage}/conv2d_2')(x)
-        x = LeakyReLU(alpha=leaky_alpha, name=f'block_{current_stage}/activation_2')(x)
+    # build from highest block till block 3
+    for current_index, current_stage in enumerate(range(stop_stage, 2, -1)):
+        # apply block on current previous features with new stage
+        features = block(value=features, stage=current_stage)
 
-        # downscale previous image (img) and feature map of current block
-        down = Downscale2D(name=f'block_{current_stage}/downscale_to_{2**(current_stage-1)}x{2**(current_stage-1)}')
-        x = down(x)
+        # downsample image features from current block and image from previous block
+        down = Downsampling2D(name=f'block_{current_stage}/downsample_to_{2**(current_stage-1)}x{2**(current_stage-1)}')
+        features = down(features)
+        image = down(image)
 
-        # compose image from downscaled previous image features (y) and current image features (x) if last stage
-        if current_stage == stop_stage:
-            img = down(img)
-            y = Conv2D(filters=stage_features[current_stage-1], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                       use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{current_stage-1}/fromRGB')(img)
-            feat_alpha_down = tf.multiply(1 - alpha, y, name=f'block_{current_stage-1}/alpha_downscaled_features')
-            feat_alpha_block = tf.multiply(alpha, x, name=f'block_{current_stage-1}/alpha_block_features')
-            x = tf.add(feat_alpha_down, feat_alpha_block, name=f'block_{current_stage-1}/alpha_composite_features')
+        # alpha smooth features from current block into features from previous block image
+        if use_alpha_smoothing and current_stage == stop_stage:
+            features_image = from_rgb(value=image, stage=current_stage - 1)
+            features = features_image + (features - features_image) * alpha
 
-    # final block 1
-    x = Conv2D(filters=stage_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
-               kernel_initializer='he_normal', name=f'block_1/conv2d_1')(x)
-    x = LeakyReLU(alpha=leaky_alpha, name=f'block_1/activation_1')(x)
-    x = Flatten(name='block_1/flatten')(x)
-    x = Dense(units=512, use_bias=use_bias, kernel_initializer='he_normal', name='block_1/dense_1')(x)
-    x = LeakyReLU(alpha=leaky_alpha, name=f'block_1/activation_2')(x)
-    x = Dense(units=1, use_bias=use_bias, kernel_initializer='he_normal', name='block_1/dense_2')(x)
-    x = LeakyReLU(alpha=leaky_alpha, name=f'block_1/activation_3')(x)
+    # final block 2
+    x = Conv2D(filters=stage_to_num_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
+               kernel_initializer='he_normal', name=f'block_2/conv2d_1')(features)
+    x = LeakyReLU(alpha=leaky_alpha, name=f'block_2/activation_1')(x)
+    x = Flatten(name='block_2/flatten')(x)
+    x = Dense(units=512, use_bias=use_bias, kernel_initializer='he_normal', name='block_2/dense_1')(x)
+    x = LeakyReLU(alpha=leaky_alpha, name=f'block_2/activation_2')(x)
+    x = Dense(units=1, use_bias=use_bias, kernel_initializer='he_normal', name='block_2/dense_2')(x)
 
     return tf.keras.models.Model(inputs=inputs, outputs=x, name=name), alpha
