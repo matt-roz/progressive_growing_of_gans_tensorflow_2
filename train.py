@@ -100,7 +100,6 @@ def train(arguments):
         random_noise = tf.random.normal(shape=(16, arguments.noisedim), seed=1000)
 
     # local tf.function definitions for fast graphmode execution
-    @tf.function
     def discriminator_loss(
             real_images: tf.Tensor,
             fake_images: tf.Tensor,
