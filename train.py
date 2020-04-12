@@ -96,7 +96,7 @@ def train(arguments):
 
     # local tf.function definitions for fast graphmode execution
     @tf.function
-    def discriminator_loss(real_output, fake_output):
+    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor) -> tf.Tensor:
         # real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
         # fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
         # total_loss = real_loss + fake_loss
@@ -107,11 +107,11 @@ def train(arguments):
         return total_loss
 
     @tf.function
-    def generator_loss(fake_output):
+    def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
         # return tf_loss_obj(tf.ones_like(fake_output), fake_output)
         return -tf.reduce_mean(fake_output)
 
-    def train_step(image_batch, local_batch_size):
+    def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noisedim])
 
@@ -133,7 +133,7 @@ def train(arguments):
         optimizer_dis.apply_gradients(zip(gradients_discriminator, model_dis.trainable_variables))
         return _gen_loss, _disc_loss
 
-    def epoch_step(dataset, num_epoch, num_steps):
+    def epoch_step(dataset: tf.data.Dataset, num_epoch: int, num_steps: int) -> Tuple[float, float, float]:
         # return metrics
         _epoch_gen_loss, _epoch_dis_loss, _image_count, _current_step = 0.0, 0.0, 0.0, 0
 
