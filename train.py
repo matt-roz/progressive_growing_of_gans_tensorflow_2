@@ -256,7 +256,7 @@ def train(arguments):
         epoch_duration = time.time() - epoch_start_time
 
         # smooth weights into final generator
-        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999, log_info=True)
+        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999)
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:

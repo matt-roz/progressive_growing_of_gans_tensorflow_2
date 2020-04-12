@@ -41,7 +41,7 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
 
 def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: int, output_dir, prefix: str = "",
                      alpha: float = 0.0, stage: int = 0) -> None:
-    assert isinstance(stage, int) and stage >= 2
+    assert isinstance(stage, int) and (stage == 0 or stage >= 2)
     _shape = tf.shape(random_noise)
     if not stage:
         fixed_predictions = generator([random_noise, alpha], training=False).numpy()
