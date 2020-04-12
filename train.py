@@ -5,6 +5,7 @@ from typing import Union, Optional, Tuple, Callable
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
+import numpy as np
 from tqdm import tqdm
 
 from model import generator_paper, discriminator_paper
@@ -76,7 +77,6 @@ def train(arguments):
 
         # get model
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
-        alpha = tf.Variable(initial_value=0.0, trainable=False, dtype=tf.float32, name='alpha')
         model_gen = generator_paper(
             stop_stage=arguments.stopstage,
             use_bias=arguments.usebias,
@@ -118,10 +118,10 @@ def train(arguments):
 
         # forward pass: inference through both models on tape, compute losses
         with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
-            fake_images = model_gen([noise, alpha], training=True)
+            fake_images = model_gen([noise, arguments.alpha], training=True)
 
-            real_image_guesses = model_dis([image_batch, alpha], training=True)
-            fake_image_guesses = model_dis([fake_images, alpha], training=True)
+            real_image_guesses = model_dis([image_batch, arguments.alpha], training=True)
+            fake_image_guesses = model_dis([fake_images, arguments.alpha], training=True)
 
             _gen_loss = generator_loss(fake_image_guesses)
             _disc_loss = discriminator_loss(real_image_guesses, fake_image_guesses)
@@ -160,12 +160,12 @@ def train(arguments):
                 tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_step)
                 # tf.summary.scalar(name="model/batch/alpha_gen", data=alpha_gen, step=_step)
                 # tf.summary.scalar(name="model/batch/alpha_dis", data=alpha_dis, step=_step)
-                tf.summary.scalar(name="model/batch/alpha", data=alpha, step=_step)
+                tf.summary.scalar(name="model/batch/alpha", data=arguments.alpha, step=_step)
 
             # increase alpha
             if arguments.usealphasmoothing:
-                alpha.assign_add(alpha_step_per_image * _size)
-                alpha.assign(tf.minimum(alpha, 1.0))
+                arguments.alpha += alpha_step_per_image * _size
+                arguments.alpha = np.minimum(arguments.alpha, 1.0)
 
                 # alpha_gen.assign_add(alpha_step_per_image * _size)
                 # alpha_gen.assign(tf.minimum(alpha_gen, 1.0))
@@ -235,7 +235,7 @@ def train(arguments):
             tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
             # tf.summary.scalar(name="model/epoch/alpha_gen", data=alpha_gen, step=epoch)
             # tf.summary.scalar(name="model/epoch/alpha_dis", data=alpha_dis, step=epoch)
-            tf.summary.scalar(name="model/epoch/alpha", data=alpha, step=epoch)
+            tf.summary.scalar(name="model/epoch/alpha", data=arguments.alpha, step=epoch)
 
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
@@ -256,7 +256,7 @@ def train(arguments):
 
         # check stage increase
         if (epoch + 1) % arguments.epochsperstage == 0 and current_stage < arguments.stopstage:
-            alpha.assign(0.0)
+            arguments.alpha = 0.0
             current_stage += 1
             train_dataset, _ = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",

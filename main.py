@@ -221,6 +221,7 @@ if __name__ == '__main__':
     args.numexamples = 30000
     args.startstage = 2
     args.stopstage = int(math.log2(args.resolution))
+    args.alpha = 0.0
 
     # chief creates directories as well as logfile
     if args.is_chief and args.logging:
