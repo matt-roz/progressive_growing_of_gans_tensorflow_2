@@ -75,8 +75,8 @@ def train(arguments):
 
         # get model
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
-        model_gen, alpha_gen = generator_paper(start_stage=arguments.startstage, stop_stage=arguments.stopstage)
-        model_dis, alpha_dis = discriminator_paper(start_stage=arguments.startstage, stop_stage=arguments.stopstage)
+        model_gen, alpha_gen = generator_paper(stop_stage=arguments.stopstage)
+        model_dis, alpha_dis = discriminator_paper(stop_stage=arguments.stopstage)
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
@@ -181,13 +181,11 @@ def train(arguments):
     image_shape = train_dataset.element_spec.shape[1:]
     model_gen, alpha_gen = generator_paper(
         noise_dim=arguments.noisedim,
-        start_stage=arguments.startstage,
         stop_stage=current_stage,
         name=f"pgan_celeb_a_hq_generator_{current_stage}"
     )
     model_dis, alpha_dis = discriminator_paper(
-        noise_dim=arguments.noisedim,
-        start_stage=arguments.startstage,
+        input_shape=image_shape,
         stop_stage=current_stage,
         name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
     )
@@ -249,13 +247,11 @@ def train(arguments):
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen, alpha_gen = generator_paper(
                 noise_dim=arguments.noisedim,
-                start_stage=arguments.startstage,
                 stop_stage=current_stage,
                 name=f"pgan_celeb_a_hq_generator_{current_stage}"
             )
             _model_dis, alpha_dis = discriminator_paper(
-                noise_dim=arguments.noisedim,
-                start_stage=arguments.startstage,
+                input_shape=image_shape,
                 stop_stage=current_stage,
                 name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
             )
