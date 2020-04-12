@@ -48,9 +48,31 @@ class PixelNormalization(tf.keras.layers.Layer):
 
 
 class StandardDeviationLayer(tf.keras.layers.Layer):
-    def __init__(self, group_size: int = 4, *args, **kwargs):
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'NHWC', *args, **kwargs):
         super().__init__(*args, **kwargs)
-        raise NotImplementedError()
+        assert isinstance(epsilon, float) and epsilon > 0
+        assert data_format in ['NHWC', 'NCHW']
+        self._epsilon = epsilon
+        self._data_format = data_format
+        self._channel_axis = -1 if self._data_format == 'NHWC' else 1
+        if self._data_format == 'NCHW':
+            raise NotImplementedError()  # M. Rozanski: TODO
 
     def call(self, inputs, **kwargs):
-        return inputs
+        mean = tf.reduce_mean(inputs, axis=0, keepdims=True)
+        mean_square_diff = tf.reduce_mean(tf.math.square(inputs - mean), axis=0, keepdims=True)
+        mean_square_diff += self._epsilon
+        stddev = tf.sqrt(mean_square_diff)
+        mean_stddev = tf.reduce_mean(stddev, keepdims=True)
+        input_shape = tf.shape(inputs)
+        outputs = tf.tile(mean_stddev, (input_shape[0], input_shape[1], input_shape[2], 1))
+        return tf.concat([inputs, outputs], axis=self._channel_axis)
+
+    def compute_output_shape(self, input_shape):
+        assert len(input_shape) == 4
+        shape = list(input_shape)
+        shape[self._channel_axis] += 1
+        return tuple(shape)
+
+    def get_config(self):
+        return {'epsilon': self._epsilon, 'data_format': self._data_format}
