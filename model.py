@@ -50,7 +50,7 @@ def generator_paper(
     if normalize_latents:
         x = PixelNormalization(name='block_s/pixel_norm_noise')(x)
 
-    # project from noise to minimum image, apply first conv block to features
+    # project from noise to minimum features, apply block 2 to features
     _target_shape = (4, 4,  stage_to_num_features[2])
     _units = np.prod(_target_shape)
     features = Dense(units=_units, use_bias=use_bias, kernel_initializer='he_normal', input_shape=input_shape,
