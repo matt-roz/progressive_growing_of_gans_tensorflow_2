@@ -108,44 +108,32 @@ def train(arguments):
             fake_output: tf.Tensor,
             wgan_target: float = 1.0,
             wgan_lambda: float = 10.0,
-            wgan_epsilon: float = 0.001) -> tf.Tensor:
+            wgan_epsilon: float = 0.001) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
         # real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
         # fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
         # total_loss = real_loss + fake_loss
 
         # wasserstein loss
-        total_loss = tf.reduce_mean(fake_output - real_output)
+        wasserstein_loss = tf.reduce_mean(fake_output - real_output)
 
         # gradient penalty
         batch_size = tf.shape(real_images)[0]
         mixing_factors = tf.random.uniform([batch_size, 1, 1, 1], 0.0, 1.0)
         mixed_images = real_images + (fake_images - real_images) * mixing_factors
         mixed_output = model_dis([mixed_images, arguments.alpha], training=False)
-        mixed_grads = tf.gradients(mixed_output, mixed_images)[0]
-        mixed_norms = tf.sqrt(1e-8 + tf.reduce_sum(tf.square(mixed_grads), axis=[1, 2, 3]))
+        mixed_loss = tf.reduce_sum(mixed_output)
+        mixed_grads = tf.gradients(mixed_loss, mixed_images)[0]
+        mixed_norms = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(mixed_grads), axis=[1, 2, 3])))
         gradient_penalty = tf.reduce_mean(tf.square(mixed_norms - wgan_target))
-        total_loss += gradient_penalty * (wgan_lambda / (wgan_target ** 2))
+        gradient_loss = gradient_penalty * (wgan_lambda / (wgan_target ** 2))
 
         # epsilon drift penalty
-        total_loss += tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
-        """
-        with tf.GradientTape() as discriminator_tape:
-            mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
-            mixed_loss = tf.reduce_mean(mixed_output)
-
-        mixed_grads = discriminator_tape.gradient(mixed_loss, model_dis.trainable_variables)
-        sq_mixed_grads = [tf.reduce_sum(tf.square(var)) for var in mixed_grads]
-        mixed_norms = tf.reduce_mean(tf.sqrt(sq_mixed_grads))
-        gradient_penalty = tf.square(mixed_norms - wgan_target)
-        total_loss += gradient_penalty * (wgan_lambda / (wgan_target ** 2))
-        total_loss += tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
-        """
-        return total_loss
+        epsilon_loss = tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
+        return wasserstein_loss, gradient_loss, epsilon_loss
 
     @tf.function
     def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
         return tf_loss_obj(tf.ones_like(fake_output), fake_output)
-        # return -tf.reduce_mean(fake_output)
 
     def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
@@ -160,16 +148,17 @@ def train(arguments):
 
             _gen_loss = generator_loss(fake_image_guesses)
             _disc_loss = discriminator_loss(image_batch, fake_images, real_image_guesses, fake_image_guesses)
+            _full_disc_loss = tf.reduce_sum(_disc_loss)
 
         # collocate gradients from tapes
         gradients_generator = generator_tape.gradient(_gen_loss, model_gen.trainable_variables)
-        gradients_discriminator = discriminator_tape.gradient(_disc_loss, model_dis.trainable_variables)
+        gradients_discriminator = discriminator_tape.gradient(_full_disc_loss, model_dis.trainable_variables)
         # backward pass: apply gradients via optimizers to update models
         optimizer_gen.apply_gradients(zip(gradients_generator, model_gen.trainable_variables))
         optimizer_dis.apply_gradients(zip(gradients_discriminator, model_dis.trainable_variables))
-        return _gen_loss, _disc_loss
+        return _gen_loss, tf.stack(_disc_loss)
 
-    def epoch_step(dataset: tf.data.Dataset, num_epoch: int, num_steps: int) -> Tuple[float, float, float]:
+    def epoch_step(dataset: tf.data.Dataset, num_epoch: int, num_steps: int) -> Tuple[float, tf.Tensor, float]:
         # return metrics
         _epoch_gen_loss, _epoch_dis_loss, _image_count, _current_step = 0.0, 0.0, 0.0, 0
 
@@ -190,9 +179,10 @@ def train(arguments):
             if arguments.logging and arguments.logfrequency == 'batch':
                 _step = num_epoch * num_steps + _current_step
                 tf.summary.scalar(name="losses/batch/generator", data=batch_gen_loss, step=_step)
-                tf.summary.scalar(name="losses/batch/discriminator", data=batch_dis_loss, step=_step)
-                tf.summary.scalar(name="losses/batch/moving_epoch_mean/generator", data=_epoch_gen_loss, step=_step)
-                tf.summary.scalar(name="losses/batch/moving_epoch_mean/discriminator", data=_epoch_dis_loss, step=_step)
+                tf.summary.scalar(name="losses/batch/discriminator", data=tf.reduce_sum(batch_dis_loss), step=_step)
+                tf.summary.scalar(name="losses/batch/discriminator_wgan", data=batch_dis_loss[0], step=_step)
+                tf.summary.scalar(name="losses/batch/discriminator_gp", data=batch_dis_loss[1], step=_step)
+                tf.summary.scalar(name="losses/batch/discriminator_eps", data=batch_dis_loss[2], step=_step)
                 tf.summary.scalar(name="model/batch/alpha", data=arguments.alpha, step=_step)
 
             # increase alpha
@@ -201,7 +191,7 @@ def train(arguments):
                 arguments.alpha = np.minimum(arguments.alpha, 1.0)
 
             # additional chief tasks during training
-            batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={batch_dis_loss:.3f}"
+            batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={tf.reduce_sum(batch_dis_loss):.3f}"
             dataset.set_postfix_str(batch_status_message)
             logging.debug(batch_status_message)
             _current_step += 1
@@ -265,7 +255,10 @@ def train(arguments):
             tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
             tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
             tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
-            tf.summary.scalar(name="losses/epoch/discriminator", data=dis_loss, step=epoch)
+            tf.summary.scalar(name="losses/epoch/discriminator", data=tf.reduce_sum(dis_loss), step=epoch)
+            tf.summary.scalar(name="losses/epoch/discriminator_wgan", data=dis_loss[0], step=epoch)
+            tf.summary.scalar(name="losses/epoch/discriminator_gp", data=dis_loss[1], step=epoch)
+            tf.summary.scalar(name="losses/epoch/discriminator_eps", data=dis_loss[2], step=epoch)
             tf.summary.scalar(name="model/epoch/alpha", data=arguments.alpha, step=epoch)
 
         # save eval images
