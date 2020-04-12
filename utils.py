@@ -40,7 +40,7 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
 
 
 def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: int, output_dir, prefix: str = "",
-                     alpha: float = 1.0) -> None:
+                     alpha: float = 0.0) -> None:
     fixed_predictions = generator([random_noise, alpha], training=False).numpy()
     rand_predictions = generator([tf.random.normal(shape=tf.shape(random_noise)), alpha], training=False).numpy()
     num_images, width, height, channels = fixed_predictions.shape  # 16, 128, 128, 3
