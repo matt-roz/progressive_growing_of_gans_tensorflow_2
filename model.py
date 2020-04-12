@@ -55,6 +55,7 @@ def generator_paper(
         use_bias: bool = True,
         use_weight_scaling: bool = True,
         use_alpha_smoothing: bool = True,
+        return_all_outputs: bool = False,
         leaky_alpha: float = 0.2,
         normalize_latents: bool = False,
         num_features: Optional[Dict] = None,
@@ -66,6 +67,7 @@ def generator_paper(
     if input_shape is None:
         input_shape = (noise_dim,)
     inputs = tf.keras.layers.Input(shape=input_shape, name='noise_input', dtype=tf.float32)
+    outputs = []
     alpha = tf.keras.layers.Input(shape=tuple(), batch_size=1, name='alpha_input', dtype=tf.float32)
 
     # define building blocks
@@ -103,6 +105,7 @@ def generator_paper(
     features = LeakyReLU(alpha=leaky_alpha, name='block_2/activation_2')(features)
     features = PixelNormalization(name='block_2/pixel_norm_2')(features)
     image_out = to_rgb(value=features, stage=2)
+    outputs.append(tf.nn.tanh(image_out, name=f'block_2/final_image_activation'))
 
     # build 3 - till end
     for current_stage in range(3, stop_stage + 1):
@@ -125,8 +128,11 @@ def generator_paper(
         else:
             image_out = image
 
-    x = tf.nn.tanh(image_out, name='block_f/activation')
-    return tf.keras.models.Model(inputs=[inputs, alpha], outputs=x, name=name)
+        # append to outputs
+        outputs.append(tf.nn.tanh(image_out, name=f'block_{current_stage}/final_image_activation'))
+
+    outputs = outputs[-1] if not return_all_outputs else outputs
+    return tf.keras.models.Model(inputs=[inputs, alpha], outputs=outputs, name=name)
 
 
 def discriminator_paper(

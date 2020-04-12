@@ -77,17 +77,21 @@ def train(arguments):
 
         # get model
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
-        model_gen = generator_paper(
+        final_gen = generator_paper(
             stop_stage=arguments.stopstage,
             use_bias=arguments.usebias,
             use_weight_scaling=arguments.useweightscaling,
-            use_alpha_smoothing=arguments.usealphasmoothing
+            use_alpha_smoothing=arguments.usealphasmoothing,
+            return_all_outputs=True,
+            name='final_generator'
         )
+        model_gen = final_gen
         model_dis = discriminator_paper(
             stop_stage=arguments.stopstage,
             use_bias=arguments.usebias,
             use_weight_scaling=arguments.useweightscaling,
-            use_alpha_smoothing=arguments.usealphasmoothing
+            use_alpha_smoothing=arguments.usealphasmoothing,
+            name='final_discriminator'
         )
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
@@ -199,24 +203,29 @@ def train(arguments):
         use_bias=arguments.usebias,
         use_weight_scaling=arguments.useweightscaling,
         use_alpha_smoothing=arguments.usealphasmoothing,
-        name=f"pgan_celeb_a_hq_generator_{current_stage}"
+        name=f"generator_stage_{current_stage}"
     )
+    transfer_weights(source_model=final_gen, target_model=model_gen, prefix='', beta=0.0, log_info=True)
     model_dis = discriminator_paper(
         input_shape=image_shape,
         stop_stage=current_stage,
         use_bias=arguments.usebias,
         use_weight_scaling=arguments.useweightscaling,
         use_alpha_smoothing=arguments.usealphasmoothing,
-        name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
+        name=f"discriminator_stage_{current_stage}"
     )
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
 
     for epoch in epochs:
+        # make an epoch step
         epoch_start_time = time.time()
         gen_loss, dis_loss, image_count = epoch_step(train_dataset, epoch, steps_per_epoch)
         epoch_duration = time.time() - epoch_start_time
+
+        # smooth weights into final generator
+        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999, log_info=True)
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
@@ -231,6 +240,7 @@ def train(arguments):
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
             save_eval_images(random_noise, model_gen, epoch, arguments.outdir, alpha=arguments.alpha)
+            save_eval_images(random_noise, final_gen, epoch, arguments.outdir, stage=current_stage)
 
         # save model checkpoints
         if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
@@ -271,7 +281,7 @@ def train(arguments):
                 use_bias=arguments.usebias,
                 use_weight_scaling=arguments.useweightscaling,
                 use_alpha_smoothing=arguments.usealphasmoothing,
-                name=f"pgan_celeb_a_hq_generator_{current_stage}"
+                name=f"generator_stage_{current_stage}"
             )
             _model_dis = discriminator_paper(
                 input_shape=image_shape,
@@ -279,10 +289,10 @@ def train(arguments):
                 use_bias=arguments.usebias,
                 use_weight_scaling=arguments.useweightscaling,
                 use_alpha_smoothing=arguments.usealphasmoothing,
-                name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
+                name=f"discriminator_stage_{current_stage}"
             )
-            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='')
-            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='')
+            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='', log_info=True)
+            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='', log_info=True)
             model_gen = _model_gen
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
