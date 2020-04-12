@@ -58,7 +58,7 @@ if __name__ == '__main__':
                               "(default: '%(default)s')")
     model_parser.add_argument('--noise-dim', dest="noisedim", type=int, default=512,
                               help="noise dim for generator to create images from (default: '%(default)s')")
-    model_parser.add_argument('--no-bias', dest='usebias', type=bool, action='store_false', default=True,
+    model_parser.add_argument('--no-bias', dest='usebias', action='store_false', default=True,
                               help="deactivates use of bias in all layers")
     model_parser.add_argument('--no-weight-scaling', dest='useweightscaling', action='store_false', default=True,
                               help="deactivates use of weight scaling")

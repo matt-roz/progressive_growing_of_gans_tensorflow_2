@@ -74,8 +74,18 @@ def train(arguments):
 
         # get model
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
-        model_gen, alpha_gen = generator_paper(stop_stage=arguments.stopstage)
-        model_dis, alpha_dis = discriminator_paper(stop_stage=arguments.stopstage)
+        model_gen, alpha_gen = generator_paper(
+            stop_stage=arguments.stopstage,
+            use_bias=arguments.usebias,
+            use_weight_scaling=arguments.useweightscaling,
+            use_alpha_smoothing=arguments.usealphasmoothing
+        )
+        model_dis, alpha_dis = discriminator_paper(
+            stop_stage=arguments.stopstage,
+            use_bias=arguments.usebias,
+            use_weight_scaling=arguments.useweightscaling,
+            use_alpha_smoothing=arguments.usealphasmoothing
+        )
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
@@ -183,7 +193,7 @@ def train(arguments):
         stop_stage=current_stage,
         use_bias=arguments.usebias,
         use_weight_scaling=arguments.useweightscaling,
-        use_alpha_smoothing=arguments.alphasmoothing,
+        use_alpha_smoothing=arguments.usealphasmoothing,
         name=f"pgan_celeb_a_hq_generator_{current_stage}"
     )
     model_dis, alpha_dis = discriminator_paper(
@@ -191,7 +201,7 @@ def train(arguments):
         stop_stage=current_stage,
         use_bias=arguments.usebias,
         use_weight_scaling=arguments.useweightscaling,
-        use_alpha_smoothing=arguments.alphasmoothing,
+        use_alpha_smoothing=arguments.usealphasmoothing,
         name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
     )
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
@@ -255,7 +265,7 @@ def train(arguments):
                 stop_stage=current_stage,
                 use_bias=arguments.usebias,
                 use_weight_scaling=arguments.useweightscaling,
-                use_alpha_smoothing=arguments.alphasmoothing,
+                use_alpha_smoothing=arguments.usealphasmoothing,
                 name=f"pgan_celeb_a_hq_generator_{current_stage}"
             )
             _model_dis, alpha_dis = discriminator_paper(
@@ -263,7 +273,7 @@ def train(arguments):
                 stop_stage=current_stage,
                 use_bias=arguments.usebias,
                 use_weight_scaling=arguments.useweightscaling,
-                use_alpha_smoothing=arguments.alphasmoothing,
+                use_alpha_smoothing=arguments.usealphasmoothing,
                 name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
             )
             transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='block')
