@@ -1,7 +1,7 @@
 import tensorflow as tf
 
 
-class Downsampling2D(tf.keras.layers.Layer):
+class DownSampling2D(tf.keras.layers.Layer):
     def __init__(self, factor: int = 2, data_format: str = 'NHWC', *args, **kwargs):
         super().__init__(*args, **kwargs)
         assert isinstance(factor, int) and factor >= 1
