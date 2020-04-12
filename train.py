@@ -136,7 +136,8 @@ def train(arguments):
 
     @tf.function
     def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
-        return tf_loss_obj(tf.ones_like(fake_output), fake_output)
+        # return tf_loss_obj(tf.ones_like(fake_output), fake_output)
+        return -tf.reduce_mean(fake_output)
 
     def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
