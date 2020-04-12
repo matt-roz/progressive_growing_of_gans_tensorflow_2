@@ -63,7 +63,7 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.epsilon,
             name='adam_generator',
-            clipvalue=0.01
+            # clipvalue=0.01
         )
         optimizer_dis = tf.keras.optimizers.Adam(
             learning_rate=arguments.learningrate * arguments.discrepeats,
@@ -71,7 +71,7 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.epsilon,
             name='adam_discriminator',
-            clipvalue=0.01
+            # clipvalue=0.01
         )
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
@@ -303,7 +303,7 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.epsilon,
                 name='adam_generator',
-                clipvalue=0.01
+                # clipvalue=0.01
             )
             optimizer_dis = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learningrate * arguments.discrepeats,
@@ -311,5 +311,5 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.epsilon,
                 name='adam_discriminator',
-                clipvalue=0.01
+                # clipvalue=0.01
             )
