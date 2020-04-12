@@ -101,14 +101,45 @@ def train(arguments):
 
     # local tf.function definitions for fast graphmode execution
     @tf.function
-    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor) -> tf.Tensor:
-        real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
-        fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
-        total_loss = real_loss + fake_loss
-        # return total_loss
-        # real_loss = tf.reduce_mean(real_output)
-        # fake_loss = tf.reduce_mean(fake_output)
-        # total_loss = tf.reduce_mean(fake_output - real_output)
+    def discriminator_loss(
+            real_images: tf.Tensor,
+            fake_images: tf.Tensor,
+            real_output: tf.Tensor,
+            fake_output: tf.Tensor,
+            wgan_target: float = 1.0,
+            wgan_lambda: float = 10.0,
+            wgan_epsilon: float = 0.001) -> tf.Tensor:
+        # real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
+        # fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
+        # total_loss = real_loss + fake_loss
+
+        # wasserstein loss
+        total_loss = tf.reduce_mean(fake_output - real_output)
+
+        # gradient penalty
+        batch_size = tf.shape(real_images)[0]
+        mixing_factors = tf.random.uniform([batch_size, 1, 1, 1], 0.0, 1.0)
+        mixed_images = real_images + (fake_images - real_images) * mixing_factors
+        mixed_output = model_dis([mixed_images, arguments.alpha], training=False)
+        mixed_grads = tf.gradients(mixed_output, mixed_images)[0]
+        mixed_norms = tf.sqrt(1e-8 + tf.reduce_sum(tf.square(mixed_grads), axis=[1, 2, 3]))
+        gradient_penalty = tf.reduce_mean(tf.square(mixed_norms - wgan_target))
+        total_loss += gradient_penalty * (wgan_lambda / (wgan_target ** 2))
+
+        # epsilon drift penalty
+        total_loss += tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
+        """
+        with tf.GradientTape() as discriminator_tape:
+            mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
+            mixed_loss = tf.reduce_mean(mixed_output)
+
+        mixed_grads = discriminator_tape.gradient(mixed_loss, model_dis.trainable_variables)
+        sq_mixed_grads = [tf.reduce_sum(tf.square(var)) for var in mixed_grads]
+        mixed_norms = tf.reduce_mean(tf.sqrt(sq_mixed_grads))
+        gradient_penalty = tf.square(mixed_norms - wgan_target)
+        total_loss += gradient_penalty * (wgan_lambda / (wgan_target ** 2))
+        total_loss += tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
+        """
         return total_loss
 
     @tf.function
@@ -128,7 +159,7 @@ def train(arguments):
             fake_image_guesses = model_dis([fake_images, arguments.alpha], training=True)
 
             _gen_loss = generator_loss(fake_image_guesses)
-            _disc_loss = discriminator_loss(real_image_guesses, fake_image_guesses)
+            _disc_loss = discriminator_loss(image_batch, fake_images, real_image_guesses, fake_image_guesses)
 
         # collocate gradients from tapes
         gradients_generator = generator_tape.gradient(_gen_loss, model_gen.trainable_variables)
