@@ -98,19 +98,19 @@ def train(arguments):
     # local tf.function definitions for fast graphmode execution
     @tf.function
     def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor) -> tf.Tensor:
-        # real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
-        # fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
-        # total_loss = real_loss + fake_loss
+        real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
+        fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
+        total_loss = real_loss + fake_loss
         # return total_loss
-        real_loss = tf.reduce_mean(real_output)
-        fake_loss = tf.reduce_mean(fake_output)
-        total_loss = fake_loss - real_loss
+        # real_loss = tf.reduce_mean(real_output)
+        # fake_loss = tf.reduce_mean(fake_output)
+        # total_loss = tf.reduce_mean(fake_output - real_output)
         return total_loss
 
     @tf.function
     def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
-        # return tf_loss_obj(tf.ones_like(fake_output), fake_output)
-        return -tf.reduce_mean(fake_output)
+        return tf_loss_obj(tf.ones_like(fake_output), fake_output)
+        # return -tf.reduce_mean(fake_output)
 
     def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
@@ -290,8 +290,8 @@ def train(arguments):
                 use_alpha_smoothing=arguments.usealphasmoothing,
                 name=f"pgan_celeb_a_hq_discriminator_{current_stage}"
             )
-            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='block')
-            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='block')
+            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='')
+            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='')
             model_gen = _model_gen
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
