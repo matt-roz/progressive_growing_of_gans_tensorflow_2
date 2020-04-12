@@ -117,7 +117,7 @@ def train(arguments):
 
         # gradient penalty
         batch_size = tf.shape(real_images)[0]
-        mixing_factors = tf.random.uniform([batch_size, 1, 1, 1], 0.0, 1.0)
+        mixing_factors = tf.random.normal([batch_size, 1, 1, 1], 0.0, 1.0)
         mixed_images = real_images + (fake_images - real_images) * mixing_factors
 
         with tf.GradientTape() as disc_tape:
@@ -229,7 +229,6 @@ def train(arguments):
         use_alpha_smoothing=arguments.usealphasmoothing,
         name=f"generator_stage_{current_stage}"
     )
-    transfer_weights(source_model=final_gen, target_model=model_gen, prefix='', beta=0.0, log_info=True)
     model_dis = discriminator_paper(
         input_shape=image_shape,
         stop_stage=current_stage,
@@ -249,7 +248,8 @@ def train(arguments):
         epoch_duration = time.time() - epoch_start_time
 
         # smooth weights into final generator
-        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999)
+        if current_stage > 2:
+            transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999)
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
@@ -267,7 +267,8 @@ def train(arguments):
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
             save_eval_images(random_noise, model_gen, epoch, arguments.outdir, alpha=arguments.alpha)
-            save_eval_images(random_noise, final_gen, epoch, arguments.outdir, stage=current_stage)
+            if current_stage > 2:
+                save_eval_images(random_noise, final_gen, epoch, arguments.outdir, stage=current_stage)
 
         # save model checkpoints
         if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
@@ -287,6 +288,8 @@ def train(arguments):
         # check stage increase
         if (epoch + 1) % arguments.epochsperstage == 0 and current_stage < arguments.stopstage:
             arguments.alpha = 0.0
+            if current_stage == 2:
+                transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.0, log_info=True)
             current_stage += 1
             train_dataset, _ = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",

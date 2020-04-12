@@ -7,46 +7,6 @@ from tensorflow.keras.layers import Conv2D, LeakyReLU, Dense, Reshape, UpSamplin
 from layers import PixelNormalization, DownSampling2D, StandardDeviationLayer
 
 
-class Generator(tf.keras.Model):
-    def __init__(
-            self,
-            alpha_init: float = 0.0,
-            noise_dim: int = 512,
-            stop_stage: int = 10,
-            use_bias: bool = True,
-            use_weight_scaling: bool = True,
-            use_alpha_smoothing: bool = True,
-            leaky_alpha: float = 0.2,
-            normalize_latents: bool = False,
-            num_features: Optional[Dict] = None,
-            name: str = 'pgan_celeb_a_hq_generator',
-            *args,
-            **kwargs):
-        super().__init__(name=name, *args, **kwargs)
-        if num_features is None:
-            self._num_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
-        else:
-            self._num_features = num_features
-        self._alpha_init = alpha_init
-        self._noise_dim = noise_dim
-        self._stop_stage = stop_stage
-
-    def call(self, inputs, training=None, mask=None):
-        pass
-
-    def compute_output_shape(self, input_shape):
-        return input_shape[0], 2 ** self._stop_stage, 2 ** self._stop_stage, 3
-
-    def get_config(self):
-        return {}
-
-    def _to_rgb(self, input_tensor: tf.Tensor, stage: int) -> tf.Tensor:
-        pass
-
-    def _block(self, input_tensor: tf.Tensor, stage: int) -> tf.Tensor:
-        pass
-
-
 def generator_paper(
         alpha_init: float = 0.0,
         input_shape: Optional[Sequence] = None,
@@ -197,6 +157,6 @@ def discriminator_paper(
     x = Flatten(name='block_2/flatten')(x)
     x = Dense(units=512, use_bias=use_bias, kernel_initializer='he_normal', name='block_2/dense_1')(x)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_2/activation_2')(x)
-    x = Dense(units=1, use_bias=use_bias, kernel_initializer='he_normal', name='block_2/dense_2')(x)
+    x = Dense(units=1, use_bias=use_bias, kernel_initializer='he_normal', activation='linear', name='block_2/dense_2')(x)
 
     return tf.keras.models.Model(inputs=[inputs, alpha], outputs=x, name=name)
