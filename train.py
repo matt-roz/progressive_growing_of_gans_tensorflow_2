@@ -239,7 +239,7 @@ def train(arguments):
 
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
-            save_eval_images(random_noise, model_gen, epoch, arguments.outdir)
+            save_eval_images(random_noise, model_gen, epoch, arguments.outdir, alpha=arguments.alpha)
 
         # save model checkpoints
         if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:

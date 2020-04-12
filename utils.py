@@ -56,7 +56,8 @@ def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: 
         predictions[height:, index * width:(index + 1) * width, :] = rand_predictions[index]
 
     image = Image.fromarray(predictions)
-    image.save(os.path.join(output_dir, f"{prefix}epoch-{epoch+1:04d}_shape-{width}x{height}x{channels}.png"))
+    name = f"{prefix}epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
+    image.save(os.path.join(output_dir, name))
 
     image.close()
     del fixed_predictions
