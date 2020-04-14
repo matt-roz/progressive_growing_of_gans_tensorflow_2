@@ -78,6 +78,7 @@ def train(arguments):
         # get model
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
         final_gen = generator_paper(
+            noise_dim=arguments.noisedim,
             stop_stage=arguments.stopstage,
             use_bias=arguments.usebias,
             use_weight_scaling=arguments.useweightscaling,
