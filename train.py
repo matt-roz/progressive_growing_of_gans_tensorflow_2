@@ -76,7 +76,7 @@ def train(arguments):
         tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
 
         # get model
-        alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
+        alpha_step_per_image = 1.0 / (arguments.epochsperstage * 30000 / 2)
         final_gen = generator_example(
             noise_dim=arguments.noisedim,
             stop_stage=arguments.stopstage,
@@ -101,14 +101,9 @@ def train(arguments):
         random_noise = tf.random.normal(shape=(16, arguments.noisedim), seed=1000)
 
     # local tf.function definitions for fast graphmode execution
-    def discriminator_loss(
-            real_images: tf.Tensor,
-            fake_images: tf.Tensor,
-            real_output: tf.Tensor,
-            fake_output: tf.Tensor,
-            wgan_target: float = 1.0,
-            wgan_lambda: float = 10.0,
-            wgan_epsilon: float = 0.001) -> Tuple[tf.Tensor, tf.Tensor, tf.Tensor]:
+    @tf.function
+    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor, wgan_epsilon: float = 0.001) \
+            -> Tuple[tf.Tensor, tf.Tensor]:
         # real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
         # fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
         # total_loss = real_loss + fake_loss
@@ -116,52 +111,53 @@ def train(arguments):
         # wasserstein loss
         wasserstein_loss = tf.reduce_mean(fake_output - real_output)
 
-        # gradient penalty
-        batch_size = tf.shape(real_images)[0]
-        mixing_factors = tf.random.uniform([batch_size, 1, 1, 1], 0.0, 1.0)
-        mixed_images = real_images + (fake_images - real_images) * mixing_factors
-
-        with tf.GradientTape() as disc_tape:
-            disc_tape.watch(mixed_images)
-            mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
-            # mixed_loss = tf.reduce_sum(mixed_output)
-
-        mixed_grads = disc_tape.gradient(mixed_output, mixed_images)
-        mixed_norms = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(mixed_grads), axis=[1, 2, 3])))
-        gradient_penalty = tf.square(mixed_norms - wgan_target)
-        gradient_loss = gradient_penalty * (wgan_lambda / (wgan_target ** 2))
-
         # epsilon drift penalty
         epsilon_loss = tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
-        return wasserstein_loss, gradient_loss, epsilon_loss
+        return wasserstein_loss, epsilon_loss
 
     @tf.function
     def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
         # return tf_loss_obj(tf.ones_like(fake_output), fake_output)
         return -tf.reduce_mean(fake_output)
 
-    def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor, wgan_target: float = 1.0,
+                   wgan_lambda: float = 10.0) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noisedim])
 
-        # forward pass: inference through both models on tape, compute losses
+        # forward pass: inference through both models on tape to create predictions
         with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
             fake_images = model_gen([noise, arguments.alpha], training=True)
-
             real_image_guesses = model_dis([image_batch, arguments.alpha], training=True)
             fake_image_guesses = model_dis([fake_images, arguments.alpha], training=True)
-
             _gen_loss = generator_loss(fake_image_guesses)
-            _disc_loss = discriminator_loss(image_batch, fake_images, real_image_guesses, fake_image_guesses)
-            _full_disc_loss = tf.reduce_sum(_disc_loss)
+            _disc_ws_loss, _disc_eps_loss = discriminator_loss(real_image_guesses, fake_image_guesses)
+
+        # create mixed images for gradient loss
+        mixing_factors = tf.random.uniform([local_batch_size, 1, 1, 1], 0.0, 1.0)
+        mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
+        with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
+            mixed_tape.watch(mixed_images)
+            mixed_output = model_dis([mixed_images, arguments.alpha], training=False)
+        gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
+        gradient_mixed_norm = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3])))
+        gradient_penalty = tf.square(gradient_mixed_norm - wgan_target)
+        gradient_loss = gradient_penalty * (wgan_lambda / (wgan_target ** 2))
+
+        # compute loss on tape
+        with discriminator_tape:
+            _disc_stacked_loss = tf.stack((_disc_ws_loss, _disc_eps_loss, gradient_loss))
+            _disc_loss = tf.reduce_sum(_disc_stacked_loss)
 
         # collocate gradients from tapes
         gradients_generator = generator_tape.gradient(_gen_loss, model_gen.trainable_variables)
-        gradients_discriminator = discriminator_tape.gradient(_full_disc_loss, model_dis.trainable_variables)
+        gradients_discriminator = discriminator_tape.gradient(_disc_loss, model_dis.trainable_variables)
+        gen_grad_vars = zip(gradients_generator, model_gen.trainable_variables)
+        dis_grad_vars = zip(gradients_discriminator, model_dis.trainable_variables)
         # backward pass: apply gradients via optimizers to update models
-        optimizer_gen.apply_gradients(zip(gradients_generator, model_gen.trainable_variables))
-        optimizer_dis.apply_gradients(zip(gradients_discriminator, model_dis.trainable_variables))
-        return _gen_loss, tf.stack(_disc_loss)
+        optimizer_gen.apply_gradients(gen_grad_vars)
+        optimizer_dis.apply_gradients(dis_grad_vars)
+        return _gen_loss, _disc_stacked_loss
 
     def epoch_step(dataset: tf.data.Dataset, num_epoch: int, num_steps: int) -> Tuple[float, tf.Tensor, float]:
         # return metrics
@@ -206,10 +202,9 @@ def train(arguments):
     # train loop
     current_stage = 2 if arguments.usestages else arguments.stopstage
     epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
-    batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 256, 5: 128, 6: 32, 7: 20, 8: 16, 9: 10, 10: 6}
-    steps_per_epoch = int(arguments.numexamples // batch_sizes[current_stage]) + 1
+    batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 384, 5: 256, 6: 178, 7: 128, 8: 64, 9: 32, 10: 16}
 
-    train_dataset, _ = get_dataset_pipeline(
+    train_dataset, num_examples = get_dataset_pipeline(
         name=f"celeb_a_hq/{2**current_stage}",
         split=arguments.split,
         data_dir=arguments.datadir,
@@ -246,6 +241,7 @@ def train(arguments):
 
     # metrics
     total_image_count = 0
+    steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
 
     for epoch in epochs:
         # make an epoch step
@@ -296,7 +292,7 @@ def train(arguments):
         if (epoch + 1) % arguments.epochsperstage == 0 and current_stage < arguments.stopstage:
             arguments.alpha = 0.0
             current_stage += 1
-            train_dataset, _ = get_dataset_pipeline(
+            train_dataset, num_examples = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",
                 split=arguments.split,
                 data_dir=arguments.datadir,
@@ -310,7 +306,7 @@ def train(arguments):
                 dataset_cache_file=arguments.cachefile
             )
             image_shape = train_dataset.element_spec.shape[1:]
-            steps_per_epoch = int(arguments.numexamples // batch_sizes[current_stage]) + 1
+            steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen = generator_example(
                 noise_dim=arguments.noisedim,
