@@ -40,12 +40,6 @@ def generator_example(
                              use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_1')(value)
         _x = BatchNormalization(name=f'block_{stage}/batch_norm_1')(_x)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        """
-        _x = Conv2D(filters=num_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                    use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_2')(_x)
-        _x = BatchNormalization(name=f'block_{stage}/batch_norm_2')(_x)
-        _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_2')(_x)
-        """
         return _x
 
     # noise input
@@ -117,12 +111,6 @@ def discriminator_example(
                     use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_1')(value)
         _x = BatchNormalization(name=f'block_{stage}/batch_norm_1')(_x)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        """
-        _x = Conv2D(filters=num_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                    use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_2')(_x)
-        _x = BatchNormalization(name=f'block_{stage}/batch_norm_2')(_x)
-        _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_2')(_x)
-        """
         return _x
 
     # input block stop_stage
@@ -228,10 +216,6 @@ def generator_paper(
 
         # alpha smooth features from current block into features from previous block image
         if use_alpha_smoothing and current_stage == stop_stage:
-            # _alpha_sub = tf.subtract(1.0, alpha, name=f'block_{current_stage}/alpha_sub')
-            # _image_out = tf.multiply(_alpha_sub, image_out, name=f'block_{current_stage}/prev_image_alpha')
-            # _image = tf.multiply(alpha, image, name=f'block_{current_stage}/cur_image_alpha')
-            # image_out = tf.add(_image_out, _image, name=f'block_{current_stage}/composed_image')
             image_out = image_out + (image - image_out) * alpha
         else:
             image_out = image
