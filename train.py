@@ -244,14 +244,18 @@ def train(arguments):
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
 
+    # metrics
+    total_image_count = 0
+
     for epoch in epochs:
         # make an epoch step
         epoch_start_time = time.time()
         gen_loss, dis_loss, image_count = epoch_step(train_dataset, epoch, steps_per_epoch)
         epoch_duration = time.time() - epoch_start_time
+        total_image_count += int(image_count)
 
         # smooth weights into final generator
-        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.9)
+        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.99)
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
@@ -259,6 +263,7 @@ def train(arguments):
             tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
             tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
             tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
+            tf.summary.scalar(name="train_speed/total_image_count", data=total_image_count, step=epoch)
             tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
             tf.summary.scalar(name="losses/epoch/discriminator", data=tf.reduce_sum(dis_loss), step=epoch)
             tf.summary.scalar(name="losses/epoch/discriminator_wgan", data=dis_loss[0], step=epoch)
