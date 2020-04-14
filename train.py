@@ -174,6 +174,9 @@ def train(arguments):
             batch_size = tf.shape(image_batch)[0]
             batch_gen_loss, batch_dis_loss = train_step(image_batch=image_batch, local_batch_size=batch_size)
 
+            # smooth weights into final generator
+            transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999, log_info=False)
+
             # compute moving average of loss metrics
             _size = tf.cast(batch_size, tf.float32)
             _epoch_gen_loss = (_image_count * _epoch_gen_loss + _size * batch_gen_loss) / (_image_count + _size)
@@ -254,9 +257,6 @@ def train(arguments):
         epoch_duration = time.time() - epoch_start_time
         total_image_count += int(image_count)
 
-        # smooth weights into final generator
-        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.99)
-
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
             batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
@@ -274,8 +274,7 @@ def train(arguments):
         # save eval images
         if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
             save_eval_images(random_noise, model_gen, epoch, arguments.outdir, alpha=arguments.alpha)
-            if current_stage > 2:
-                save_eval_images(random_noise, final_gen, epoch, arguments.outdir, stage=current_stage)
+            save_eval_images(random_noise, final_gen, epoch, arguments.outdir, stage=current_stage)
 
         # save model checkpoints
         if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
