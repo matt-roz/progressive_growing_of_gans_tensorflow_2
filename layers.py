@@ -1,5 +1,5 @@
 import tensorflow as tf
-
+import numpy as np
 
 class DownSampling2D(tf.keras.layers.Layer):
     def __init__(self, factor: int = 2, data_format: str = 'NHWC', *args, **kwargs):
@@ -76,3 +76,87 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
 
     def get_config(self):
         return {'epsilon': self._epsilon, 'data_format': self._data_format}
+
+
+def he_initializer_scale(shape, slope=1.0):
+    fan_in = np.prod(shape[:-1])
+    return np.sqrt(2. / ((1. + slope**2) * fan_in))
+
+
+def _custom_layer_impl(apply_kernel, kernel_shape, bias_shape, activation, name,
+                       he_initializer_slope, use_weight_scaling):
+    kernel_scale = he_initializer_scale(kernel_shape, he_initializer_slope)
+    init_scale, post_scale = kernel_scale, 1.0
+    if use_weight_scaling:
+        init_scale, post_scale = post_scale, init_scale
+
+    kernel_initializer = tf.random_normal_initializer(stddev=init_scale)
+
+    bias = tf.Variable(np.zeros(shape=bias_shape, dtype=np.float32), dtype=tf.float32, name=f"{name}/bias")
+
+    output = post_scale * apply_kernel(kernel_shape, kernel_initializer) + bias
+
+    if activation is not None:
+        output = activation(output)
+    return output
+
+
+def custom_conv2d(x,
+                  filters,
+                  kernel_size,
+                  name,
+                  strides=(1, 1),
+                  padding='SAME',
+                  activation=None,
+                  he_initializer_slope=1.0,
+                  use_weight_scaling=True):
+    if not isinstance(kernel_size, (list, tuple)):
+        kernel_size = [kernel_size] * 2
+        kernel_size = list(kernel_size)
+
+    def _apply_kernel(kernel_shape, kernel_initializer):
+        return tf.keras.layers.Conv2D(
+            filters=filters,
+            kernel_size=kernel_shape[0:2],
+            strides=strides,
+            padding=padding,
+            use_bias=False,
+            kernel_initializer=kernel_initializer,
+            name=name
+        )(x)
+
+    return _custom_layer_impl(
+        _apply_kernel,
+        kernel_shape=kernel_size + [x.shape.as_list()[3], filters],
+        bias_shape=(filters,),
+        activation=activation,
+        name=name,
+        he_initializer_slope=he_initializer_slope,
+        use_weight_scaling=use_weight_scaling
+    )
+
+
+def custom_dense(x,
+                 units,
+                 name,
+                 activation=None,
+                 he_initializer_slope=1.0,
+                 use_weight_scaling=True):
+
+    def _apply_kernel(kernel_shape, kernel_initializer):
+        return tf.keras.layers.Dense(
+            kernel_shape[1],
+            use_bias=False,
+            kernel_initializer=kernel_initializer,
+            name=name
+        )(x)
+
+    return _custom_layer_impl(
+        _apply_kernel,
+        kernel_shape=(x.shape.as_list()[-1], units),
+        bias_shape=(units,),
+        activation=activation,
+        name=name,
+        he_initializer_slope=he_initializer_slope,
+        use_weight_scaling=use_weight_scaling
+    )
