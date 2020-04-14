@@ -64,6 +64,8 @@ if __name__ == '__main__':
                               help="deactivates use of weight scaling")
     model_parser.add_argument('--no-alpha-smoothing', dest='usealphasmoothing', action='store_false', default=True,
                               help="deactivates last block alpha smoothing")
+    model_parser.add_argument('--no-stages', dest='usestages', action='store_false', default=True,
+                              help="deactivates progressive training (only trains final stage)")
     # batch_size input
     batch_size_group = model_parser.add_mutually_exclusive_group(required=True)
     batch_size_group.add_argument('--batch-size', dest='globalbatchsize', type=int, default=0,

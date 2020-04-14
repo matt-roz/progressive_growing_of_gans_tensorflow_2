@@ -203,7 +203,7 @@ def train(arguments):
         return _epoch_gen_loss, _epoch_dis_loss, _image_count
 
     # train loop
-    current_stage = arguments.startstage
+    current_stage = 2 if arguments.usestages else arguments.stopstage
     epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
     batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 256, 5: 128, 6: 32, 7: 20, 8: 16, 9: 10, 10: 6}
     steps_per_epoch = int(arguments.numexamples // batch_sizes[current_stage]) + 1
@@ -238,6 +238,7 @@ def train(arguments):
         use_alpha_smoothing=arguments.usealphasmoothing,
         name=f"discriminator_stage_{current_stage}"
     )
+    transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.0, log_info=True)
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
@@ -249,8 +250,7 @@ def train(arguments):
         epoch_duration = time.time() - epoch_start_time
 
         # smooth weights into final generator
-        if current_stage > 2:
-            transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999)
+        transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.9)
 
         # TensorBoard logging
         if arguments.logging and arguments.logfrequency:
@@ -289,8 +289,6 @@ def train(arguments):
         # check stage increase
         if (epoch + 1) % arguments.epochsperstage == 0 and current_stage < arguments.stopstage:
             arguments.alpha = 0.0
-            if current_stage == 2:
-                transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.0, log_info=True)
             current_stage += 1
             train_dataset, _ = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",
