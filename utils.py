@@ -49,6 +49,7 @@ def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: 
         fixed_predictions = generator([random_noise, alpha], training=False).numpy()
         rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False).numpy()
     else:
+        alpha = 1.0
         fixed_predictions = generator([random_noise, alpha], training=False)[stage - 2].numpy()
         rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False)[stage - 2].numpy()
     num_images, width, height, channels = fixed_predictions.shape
