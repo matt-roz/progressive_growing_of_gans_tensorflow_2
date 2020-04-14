@@ -8,7 +8,6 @@ from layers import PixelNormalization, DownSampling2D, StandardDeviationLayer
 
 
 def generator_paper(
-        alpha_init: float = 0.0,
         input_shape: Optional[Sequence] = None,
         noise_dim: int = 512,
         stop_stage: int = 10,
@@ -20,7 +19,6 @@ def generator_paper(
         normalize_latents: bool = False,
         num_features: Optional[Dict] = None,
         name: str = 'pgan_celeb_a_hq_generator',
-        *args,
         **kwargs) -> tf.keras.Model:
     if num_features is None:
         num_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
@@ -96,7 +94,6 @@ def generator_paper(
 
 
 def discriminator_paper(
-        alpha_init: float = 0.0,
         input_shape: Optional[Sequence] = None,
         stop_stage: int = 10,
         leaky_alpha: float = 0.2,
@@ -105,7 +102,6 @@ def discriminator_paper(
         use_alpha_smoothing: bool = True,
         num_features: Optional[Dict] = None,
         name: str = 'pgan_celeb_a_hq_discriminator',
-        *args,
         **kwargs) -> tf.keras.Model:
     # default values
     if num_features is None:
