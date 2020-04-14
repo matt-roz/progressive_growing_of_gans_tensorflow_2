@@ -99,9 +99,10 @@ def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model,
             for source_var, target_var in zip(source_vars, target_layer.variables):
                 assert source_var.shape == target_var.shape
                 assert source_var.dtype == target_var.dtype
-                _beta = beta if source_var.trainable else 0.0
-                new_value = source_var + (target_var - source_var) * _beta
-                target_var.assign(new_value)
+                # _beta = beta if source_var.trainable else 0.0
+                # new_value = source_var + (target_var - source_var) * _beta
+                delta_value = (1 - beta) * (target_var - source_var)
+                target_var.assign_sub(delta_value)
                 transferred_name_list.append(f"{source_var.name} -> {target_var.name}")
 
     # log and clear
