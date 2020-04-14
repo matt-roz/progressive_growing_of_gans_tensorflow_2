@@ -8,7 +8,7 @@ import tensorflow_datasets as tfds
 import numpy as np
 from tqdm import tqdm
 
-from model import generator_paper, discriminator_paper
+from model import generator_example, discriminator_example
 from utils import save_eval_images, transfer_weights
 
 
@@ -77,7 +77,7 @@ def train(arguments):
 
         # get model
         alpha_step_per_image = 1.0 / (arguments.epochsperstage * arguments.numexamples / 2)
-        final_gen = generator_paper(
+        final_gen = generator_example(
             noise_dim=arguments.noisedim,
             stop_stage=arguments.stopstage,
             use_bias=arguments.usebias,
@@ -87,7 +87,7 @@ def train(arguments):
             name='final_generator'
         )
         model_gen = final_gen
-        model_dis = discriminator_paper(
+        model_dis = discriminator_example(
             stop_stage=arguments.stopstage,
             use_bias=arguments.usebias,
             use_weight_scaling=arguments.useweightscaling,
@@ -223,7 +223,7 @@ def train(arguments):
         dataset_cache_file=arguments.cachefile
     )
     image_shape = train_dataset.element_spec.shape[1:]
-    model_gen = generator_paper(
+    model_gen = generator_example(
         noise_dim=arguments.noisedim,
         stop_stage=current_stage,
         use_bias=arguments.usebias,
@@ -231,7 +231,7 @@ def train(arguments):
         use_alpha_smoothing=arguments.usealphasmoothing,
         name=f"generator_stage_{current_stage}"
     )
-    model_dis = discriminator_paper(
+    model_dis = discriminator_example(
         input_shape=image_shape,
         stop_stage=current_stage,
         use_bias=arguments.usebias,
@@ -307,7 +307,7 @@ def train(arguments):
             image_shape = train_dataset.element_spec.shape[1:]
             steps_per_epoch = int(arguments.numexamples // batch_sizes[current_stage]) + 1
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
-            _model_gen = generator_paper(
+            _model_gen = generator_example(
                 noise_dim=arguments.noisedim,
                 stop_stage=current_stage,
                 use_bias=arguments.usebias,
@@ -315,7 +315,7 @@ def train(arguments):
                 use_alpha_smoothing=arguments.usealphasmoothing,
                 name=f"generator_stage_{current_stage}"
             )
-            _model_dis = discriminator_paper(
+            _model_dis = discriminator_example(
                 input_shape=image_shape,
                 stop_stage=current_stage,
                 use_bias=arguments.usebias,
