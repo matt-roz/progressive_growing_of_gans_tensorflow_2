@@ -1,5 +1,5 @@
 import os
-from typing import Union
+from typing import Union, Sequence
 import logging
 
 import tensorflow as tf
@@ -113,3 +113,22 @@ def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model,
     del transferred_name_list
     del missing_target_list
     # ToDo M. Rozanski: implement missing source_layer.name logic ?
+
+
+@tf.function
+def h2_grad_norm(input_tensor: tf.Tensor) -> tf.Tensor:
+    return tf.sqrt(1e-8 + tf.reduce_sum(tf.square(input_tensor)) / tf.reduce_prod(tf.shape(input_tensor)))
+
+
+@tf.function
+def block_grad_norm(block_grads: Sequence[tf.Tensor]) -> tf.Tensor:
+    grad_num = tf.shape(block_grads)[0]
+    grad_norms = tf.TensorArray(dtype=tf.float32, size=grad_num, dynamic_size=False)
+    _index = 0
+
+    for grad in block_grads:
+        grad_norms[_index] = h2_grad_norm(grad)
+        _index += 1
+
+    return h2_grad_norm(tf.stack(grad_norms))
+
