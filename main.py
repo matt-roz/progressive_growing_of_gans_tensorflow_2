@@ -47,9 +47,9 @@ if __name__ == '__main__':
 
     # model configuration
     model_parser = parser.add_argument_group(title="model arguments")
-    model_parser.add_argument('--epochs', dest='epochs', type=int, default=25,
+    model_parser.add_argument('--epochs', dest='epochs', type=int, default=700,
                               help="depicts default number of epochs to train for (default: '%(default)s')")
-    model_parser.add_argument('--epochs-per-stage', dest='epochs_per_stage', type=int, default=10,
+    model_parser.add_argument('--epochs-per-stage', dest='epochs_per_stage', type=int, default=54,
                               help="epochs until stage is increased (default: '%(default)s')")
     model_parser.add_argument('--leaky-alpha', dest='leaky_alpha', type=float, default=0.2,
                               help="alpha for LeakyReLU activations (default: '%(default)s')")
@@ -58,6 +58,12 @@ if __name__ == '__main__':
                               "(default: '%(default)s')")
     model_parser.add_argument('--noise-dim', dest="noise_dim", type=int, default=512,
                               help="noise dim for generator to create images from (default: '%(default)s')")
+    model_parser.add_argument('--wgan-lambda', dest='wgan_lambda', type=float, default=10.0,
+                              help="lambda for discriminator gradient penalty loss (default: '%(default)s')")
+    model_parser.add_argument('--wgan-target', dest='wgan_target', type=float, default=1.0,
+                              help="target for discriminator gradient penalty loss loss (default: '%(default)s')")
+    model_parser.add_argument('--wgan-epsilon', dest='wgan_epsilon', type=float, default=0.001,
+                              help="epsilon for discriminator epsilon drift loss loss (default: '%(default)s')")
     model_parser.add_argument('--no-bias', dest='use_bias', action='store_false', default=True,
                               help="deactivates use of bias in all layers")
     model_parser.add_argument('--no-weight-scaling', dest='use_weight_scaling', action='store_false', default=True,

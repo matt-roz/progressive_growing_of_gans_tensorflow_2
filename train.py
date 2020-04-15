@@ -5,7 +5,6 @@ from typing import Union, Optional, Tuple, Callable
 
 import tensorflow as tf
 import tensorflow_datasets as tfds
-import numpy as np
 from tqdm import tqdm
 
 from model import generator_example, discriminator_example
@@ -79,7 +78,7 @@ def train(arguments):
         alpha_var = tf.Variable((arguments.alpha,), dtype=tf.float32, name='alpha_placeholder')
 
         # get model
-        alpha_step_per_image = 1.0 / (arguments.epochs_per_stage * 30000 / 2)
+        alpha_step_per_image = (1.0 - arguments.alpha) / (arguments.epochs_per_stage * 30000 / 2)
         final_gen = generator_example(
             noise_dim=arguments.noise_dim,
             stop_stage=arguments.stop_stage,
@@ -105,20 +104,19 @@ def train(arguments):
 
     # local tf.function definitions for fast graphmode execution
     @tf.function
-    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor, wgan_epsilon: float = 0.001) -> Tuple[tf.Tensor, tf.Tensor]:
+    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         # wasserstein loss
         wasserstein_loss = tf.reduce_mean(fake_output - real_output)
 
         # epsilon drift penalty
-        epsilon_loss = tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
+        epsilon_loss = tf.reduce_mean(tf.square(real_output)) * arguments.wgan_epsilon
         return wasserstein_loss, epsilon_loss
 
     @tf.function
     def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
         return -tf.reduce_mean(fake_output)
 
-    def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor, wgan_target: float = 1.0,
-                   wgan_lambda: float = 10.0) -> Tuple[tf.Tensor, tf.Tensor]:
+    def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noise_dim])
 
@@ -136,8 +134,8 @@ def train(arguments):
                 mixed_output = model_dis([mixed_images, alpha_var], training=True)
             gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
             gradient_mixed_norm = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3])))
-            gradient_penalty = tf.square(gradient_mixed_norm - wgan_target)
-            gradient_loss = gradient_penalty * (wgan_lambda / (wgan_target ** 2))
+            gradient_penalty = tf.square(gradient_mixed_norm - arguments.wgan_target)
+            gradient_loss = gradient_penalty * (arguments.wgan_lambda / (arguments.wgan_target ** 2))
 
             # calculate losses
             _gen_loss = generator_loss(fake_image_guesses)
