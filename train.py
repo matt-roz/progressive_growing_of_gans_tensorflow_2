@@ -58,56 +58,54 @@ def train(arguments):
     with arguments.strategy.scope():
         # instantiate optimizers
         optimizer_gen = tf.keras.optimizers.Adam(
-            learning_rate=arguments.learningrate,
+            learning_rate=arguments.learning_rate,
             beta_1=arguments.beta1,
             beta_2=arguments.beta2,
-            epsilon=arguments.epsilon,
+            epsilon=arguments.adam_epsilon,
             name='adam_generator',
             # clipvalue=0.01
         )
         optimizer_dis = tf.keras.optimizers.Adam(
-            learning_rate=arguments.learningrate * arguments.discrepeats,
+            learning_rate=arguments.learning_rate * arguments.disc_repeats,
             beta_1=arguments.beta1,
             beta_2=arguments.beta2,
-            epsilon=arguments.epsilon,
+            epsilon=arguments.adam_epsilon,
             name='adam_discriminator',
             # clipvalue=0.01
         )
-        tf_loss_obj = tf.keras.losses.BinaryCrossentropy(from_logits=True)
+
+        # alpha workaround placeholder for a "scalar" tf.keras.layers.Input
+        # (read: https://github.com/tensorflow/tensorflow/issues/14384) shape=() does not work, hence using shape=(1,)
+        alpha_var = tf.Variable((arguments.alpha,), dtype=tf.float32, name='alpha_placeholder')
 
         # get model
-        alpha_step_per_image = 1.0 / (arguments.epochsperstage * 30000 / 2)
+        alpha_step_per_image = 1.0 / (arguments.epochs_per_stage * 30000 / 2)
         final_gen = generator_example(
-            noise_dim=arguments.noisedim,
-            stop_stage=arguments.stopstage,
-            use_bias=arguments.usebias,
-            use_weight_scaling=arguments.useweightscaling,
-            use_alpha_smoothing=arguments.usealphasmoothing,
+            noise_dim=arguments.noise_dim,
+            stop_stage=arguments.stop_stage,
+            use_bias=arguments.use_bias,
+            use_weight_scaling=arguments.use_weight_scaling,
+            use_alpha_smoothing=arguments.use_alpha_smoothing,
             return_all_outputs=True,
             name='final_generator'
         )
         model_gen = final_gen
         model_dis = discriminator_example(
-            stop_stage=arguments.stopstage,
-            use_bias=arguments.usebias,
-            use_weight_scaling=arguments.useweightscaling,
-            use_alpha_smoothing=arguments.usealphasmoothing,
+            stop_stage=arguments.stop_stage,
+            use_bias=arguments.use_bias,
+            use_weight_scaling=arguments.use_weight_scaling,
+            use_alpha_smoothing=arguments.use_alpha_smoothing,
             name='final_discriminator'
         )
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
         # random noise for image eval
-        random_noise = tf.random.normal(shape=(16, arguments.noisedim), seed=1000)
+        random_noise = tf.random.normal(shape=(16, arguments.noise_dim), seed=1000)
 
     # local tf.function definitions for fast graphmode execution
     @tf.function
-    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor, wgan_epsilon: float = 0.001) \
-            -> Tuple[tf.Tensor, tf.Tensor]:
-        # real_loss = tf_loss_obj(tf.ones_like(real_output), real_output)
-        # fake_loss = tf_loss_obj(tf.zeros_like(fake_output), fake_output)
-        # total_loss = real_loss + fake_loss
-
+    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor, wgan_epsilon: float = 0.001) -> Tuple[tf.Tensor, tf.Tensor]:
         # wasserstein loss
         wasserstein_loss = tf.reduce_mean(fake_output - real_output)
 
@@ -117,33 +115,33 @@ def train(arguments):
 
     @tf.function
     def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
-        # return tf_loss_obj(tf.ones_like(fake_output), fake_output)
         return -tf.reduce_mean(fake_output)
 
     def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor, wgan_target: float = 1.0,
                    wgan_lambda: float = 10.0) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
-        noise = tf.random.normal([local_batch_size, arguments.noisedim])
+        noise = tf.random.normal([local_batch_size, arguments.noise_dim])
 
         # forward pass: inference through both models on tape to create predictions
         with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
-            fake_images = model_gen([noise, arguments.alpha], training=True)
-            real_image_guesses = model_dis([image_batch, arguments.alpha], training=True)
-            fake_image_guesses = model_dis([fake_images, arguments.alpha], training=True)
-            _gen_loss = generator_loss(fake_image_guesses)
-            _disc_ws_loss, _disc_eps_loss = discriminator_loss(real_image_guesses, fake_image_guesses)
+            fake_images = model_gen([noise, alpha_var], training=True)
+            real_image_guesses = model_dis([image_batch, alpha_var], training=True)
+            fake_image_guesses = model_dis([fake_images, alpha_var], training=True)
 
             # create mixed images for gradient loss
             mixing_factors = tf.random.uniform([local_batch_size, 1, 1, 1], 0.0, 1.0)
             mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
             with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
                 mixed_tape.watch(mixed_images)
-                mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
+                mixed_output = model_dis([mixed_images, alpha_var], training=True)
             gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
             gradient_mixed_norm = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3])))
             gradient_penalty = tf.square(gradient_mixed_norm - wgan_target)
             gradient_loss = gradient_penalty * (wgan_lambda / (wgan_target ** 2))
 
+            # calculate losses
+            _gen_loss = generator_loss(fake_image_guesses)
+            _disc_ws_loss, _disc_eps_loss = discriminator_loss(real_image_guesses, fake_image_guesses)
             _disc_stacked_loss = tf.stack((_disc_ws_loss, gradient_loss, _disc_eps_loss))
             _disc_loss = tf.reduce_sum(_disc_stacked_loss)
 
@@ -178,19 +176,18 @@ def train(arguments):
             _image_count += _size
 
             # TensorBoard logging
-            if arguments.logging and arguments.logfrequency == 'batch':
+            if arguments.logging and arguments.log_freq == 'batch':
                 _step = num_epoch * num_steps + _current_step
                 tf.summary.scalar(name="losses/batch/generator", data=batch_gen_loss, step=_step)
                 tf.summary.scalar(name="losses/batch/discriminator", data=tf.reduce_sum(batch_dis_loss), step=_step)
                 tf.summary.scalar(name="losses/batch/discriminator_wgan", data=batch_dis_loss[0], step=_step)
                 tf.summary.scalar(name="losses/batch/discriminator_gp", data=batch_dis_loss[1], step=_step)
                 tf.summary.scalar(name="losses/batch/discriminator_eps", data=batch_dis_loss[2], step=_step)
-                tf.summary.scalar(name="model/batch/alpha", data=arguments.alpha, step=_step)
+                tf.summary.scalar(name="model/batch/alpha", data=alpha_var[0], step=_step)
 
             # increase alpha
-            if arguments.usealphasmoothing:
-                arguments.alpha += alpha_step_per_image * _size
-                arguments.alpha = np.minimum(arguments.alpha, 1.0)
+            if arguments.use_alpha_smoothing:
+                alpha_var.assign((tf.minimum(alpha_var[0] + alpha_step_per_image * _size, 1.0), ))
 
             # additional chief tasks during training
             batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={tf.reduce_sum(batch_dis_loss):.3f}"
@@ -201,38 +198,38 @@ def train(arguments):
         return _epoch_gen_loss, _epoch_dis_loss, _image_count
 
     # train loop
-    current_stage = 2 if arguments.usestages else arguments.stopstage
+    current_stage = 2 if arguments.use_stages else arguments.stop_stage
     epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
     batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 384, 5: 256, 6: 178, 7: 128, 8: 64, 9: 32, 10: 16}
 
     train_dataset, num_examples = get_dataset_pipeline(
         name=f"celeb_a_hq/{2**current_stage}",
         split=arguments.split,
-        data_dir=arguments.datadir,
+        data_dir=arguments.data_dir,
         batch_size=batch_sizes[current_stage],
-        buffer_size=arguments.buffersize,
+        buffer_size=arguments.buffer_size,
         process_func=celeb_a_hq_process_func,
-        map_parallel_calls=arguments.mapcalls,
-        interleave_parallel_calls=arguments.interleavecalls,
-        prefetch_parallel_calls=arguments.prefetchcalls,
+        map_parallel_calls=arguments.map_calls,
+        interleave_parallel_calls=arguments.interleave_calls,
+        prefetch_parallel_calls=arguments.prefetch_calls,
         dataset_caching=arguments.caching,
-        dataset_cache_file=arguments.cachefile
+        dataset_cache_file=arguments.cache_file
     )
     image_shape = train_dataset.element_spec.shape[1:]
     model_gen = generator_example(
-        noise_dim=arguments.noisedim,
+        noise_dim=arguments.noise_dim,
         stop_stage=current_stage,
-        use_bias=arguments.usebias,
-        use_weight_scaling=arguments.useweightscaling,
-        use_alpha_smoothing=arguments.usealphasmoothing,
+        use_bias=arguments.use_bias,
+        use_weight_scaling=arguments.use_weight_scaling,
+        use_alpha_smoothing=arguments.use_alpha_smoothing,
         name=f"generator_stage_{current_stage}"
     )
     model_dis = discriminator_example(
         input_shape=image_shape,
         stop_stage=current_stage,
-        use_bias=arguments.usebias,
-        use_weight_scaling=arguments.useweightscaling,
-        use_alpha_smoothing=arguments.usealphasmoothing,
+        use_bias=arguments.use_bias,
+        use_weight_scaling=arguments.use_weight_scaling,
+        use_alpha_smoothing=arguments.use_alpha_smoothing,
         name=f"discriminator_stage_{current_stage}"
     )
     transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.0, log_info=True)
@@ -252,7 +249,7 @@ def train(arguments):
         total_image_count += int(image_count)
 
         # TensorBoard logging
-        if arguments.logging and arguments.logfrequency:
+        if arguments.logging and arguments.log_freq:
             batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
             tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
             tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
@@ -263,19 +260,19 @@ def train(arguments):
             tf.summary.scalar(name="losses/epoch/discriminator_wgan", data=dis_loss[0], step=epoch)
             tf.summary.scalar(name="losses/epoch/discriminator_gp", data=dis_loss[1], step=epoch)
             tf.summary.scalar(name="losses/epoch/discriminator_eps", data=dis_loss[2], step=epoch)
-            tf.summary.scalar(name="model/epoch/alpha", data=arguments.alpha, step=epoch)
+            tf.summary.scalar(name="model/epoch/alpha", data=alpha_var[0], step=epoch)
 
         # save eval images
-        if arguments.evaluate and arguments.evalfrequency and (epoch + 1) % arguments.evalfrequency == 0:
-            save_eval_images(random_noise, model_gen, epoch, arguments.outdir, alpha=arguments.alpha)
-            save_eval_images(random_noise, final_gen, epoch, arguments.outdir, stage=current_stage)
+        if arguments.evaluate and arguments.eval_freq and (epoch + 1) % arguments.eval_freq == 0:
+            save_eval_images(random_noise, model_gen, epoch, arguments.out_dir, alpha=alpha_var[0])
+            save_eval_images(random_noise, final_gen, epoch, arguments.out_dir, stage=current_stage)
 
         # save model checkpoints
-        if arguments.saving and arguments.checkpointfrequency and (epoch + 1) % arguments.checkpointfrequency == 0:
+        if arguments.save and arguments.checkpoint_freq and (epoch + 1) % arguments.checkpoint_freq == 0:
             str_shape = 'x'.join([str(x) for x in image_shape])
-            gen_file = os.path.join(arguments.outdir, f"{model_gen.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
-            dis_file = os.path.join(arguments.outdir, f"{model_dis.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
-            fin_file = os.path.join(arguments.outdir, f"{final_gen.name}-epoch-{epoch+1:04d}.h5")
+            gen_file = os.path.join(arguments.out_dir, f"{model_gen.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
+            dis_file = os.path.join(arguments.out_dir, f"{model_dis.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
+            fin_file = os.path.join(arguments.out_dir, f"{final_gen.name}-epoch-{epoch+1:04d}.h5")
             model_gen.save(filepath=gen_file)
             model_dis.save(filepath=dis_file)
             final_gen.save(filepath=fin_file)
@@ -286,39 +283,39 @@ def train(arguments):
         epochs.set_postfix_str(status_message)
 
         # check stage increase
-        if (epoch + 1) % arguments.epochsperstage == 0 and current_stage < arguments.stopstage:
-            arguments.alpha = 0.0
+        if (epoch + 1) % arguments.epochs_per_stage == 0 and current_stage < arguments.stop_stage:
+            alpha_var.assign((arguments.alpha, ))
             current_stage += 1
             train_dataset, num_examples = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",
                 split=arguments.split,
-                data_dir=arguments.datadir,
+                data_dir=arguments.data_dir,
                 batch_size=batch_sizes[current_stage],
-                buffer_size=arguments.buffersize,
+                buffer_size=arguments.buffer_size,
                 process_func=celeb_a_hq_process_func,
-                map_parallel_calls=arguments.mapcalls,
-                interleave_parallel_calls=arguments.interleavecalls,
-                prefetch_parallel_calls=arguments.prefetchcalls,
+                map_parallel_calls=arguments.map_calls,
+                interleave_parallel_calls=arguments.interleave_calls,
+                prefetch_parallel_calls=arguments.prefetch_calls,
                 dataset_caching=arguments.caching,
-                dataset_cache_file=arguments.cachefile
+                dataset_cache_file=arguments.cache_file
             )
             image_shape = train_dataset.element_spec.shape[1:]
             steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen = generator_example(
-                noise_dim=arguments.noisedim,
+                noise_dim=arguments.noise_dim,
                 stop_stage=current_stage,
-                use_bias=arguments.usebias,
-                use_weight_scaling=arguments.useweightscaling,
-                use_alpha_smoothing=arguments.usealphasmoothing,
+                use_bias=arguments.use_bias,
+                use_weight_scaling=arguments.use_weight_scaling,
+                use_alpha_smoothing=arguments.use_alpha_smoothing,
                 name=f"generator_stage_{current_stage}"
             )
             _model_dis = discriminator_example(
                 input_shape=image_shape,
                 stop_stage=current_stage,
-                use_bias=arguments.usebias,
-                use_weight_scaling=arguments.useweightscaling,
-                use_alpha_smoothing=arguments.usealphasmoothing,
+                use_bias=arguments.use_bias,
+                use_weight_scaling=arguments.use_weight_scaling,
+                use_alpha_smoothing=arguments.use_alpha_smoothing,
                 name=f"discriminator_stage_{current_stage}"
             )
             transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='', log_info=True)
@@ -327,20 +324,20 @@ def train(arguments):
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
             model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-            save_eval_images(random_noise, model_gen, epoch, arguments.outdir, prefix=f'stage-{current_stage}-')
+            save_eval_images(random_noise, model_gen, epoch, arguments.out_dir, prefix=f'stage-{current_stage}-')
             optimizer_gen = tf.keras.optimizers.Adam(
-                learning_rate=arguments.learningrate,
+                learning_rate=arguments.learning_rate,
                 beta_1=arguments.beta1,
                 beta_2=arguments.beta2,
-                epsilon=arguments.epsilon,
+                epsilon=arguments.adam_epsilon,
                 name='adam_generator',
                 # clipvalue=0.01
             )
             optimizer_dis = tf.keras.optimizers.Adam(
-                learning_rate=arguments.learningrate * arguments.discrepeats,
+                learning_rate=arguments.learning_rate * arguments.disc_repeats,
                 beta_1=arguments.beta1,
                 beta_2=arguments.beta2,
-                epsilon=arguments.epsilon,
+                epsilon=arguments.adam_epsilon,
                 name='adam_discriminator',
                 # clipvalue=0.01
             )

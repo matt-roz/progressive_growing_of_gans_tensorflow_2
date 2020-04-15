@@ -34,14 +34,14 @@ if __name__ == '__main__':
 
     # input directories
     dir_parser = parser.add_argument_group(title="directory arguments")
-    dir_parser.add_argument('--out-dir', dest="outdir", type=str, default=output_dir,
+    dir_parser.add_argument('--out-dir', dest="out_dir", type=str, default=output_dir,
                             help="root directory for outputs (default: '%(default)s')")
-    dir_parser.add_argument('--data-dir', dest="datadir", type=str, default=data_dir,
+    dir_parser.add_argument('--data-dir', dest="data_dir", type=str, default=data_dir,
                             help="root directory for data input (default: '%(default)s')")
 
     # output, saving
     store_parser = parser.add_argument_group(title="output arguments")
-    store_parser.add_argument('--no-save', dest="saving", default=True, action="store_false", help="deactivates saving")
+    store_parser.add_argument('--no-save', dest="save", default=True, action="store_false", help="deactivates saving")
     store_parser.add_argument('--no-eval', dest="evaluate", default=True, action="store_false",
                               help="deactivates evaluation")
 
@@ -49,44 +49,48 @@ if __name__ == '__main__':
     model_parser = parser.add_argument_group(title="model arguments")
     model_parser.add_argument('--epochs', dest='epochs', type=int, default=25,
                               help="depicts default number of epochs to train for (default: '%(default)s')")
-    model_parser.add_argument('--epochs-per-stage', dest='epochsperstage', type=int, default=10,
+    model_parser.add_argument('--epochs-per-stage', dest='epochs_per_stage', type=int, default=10,
                               help="epochs until stage is increased (default: '%(default)s')")
-    model_parser.add_argument('--leaky-alpha', dest='leakyalpha', type=float, default=0.2,
+    model_parser.add_argument('--leaky-alpha', dest='leaky_alpha', type=float, default=0.2,
                               help="alpha for LeakyReLU activations (default: '%(default)s')")
     model_parser.add_argument('--resolution', dest='resolution', type=int, choices=resolution_choices,
                               default=resolution_choices[-1], help="stopping resolution for progressive GAN "
                               "(default: '%(default)s')")
-    model_parser.add_argument('--noise-dim', dest="noisedim", type=int, default=512,
+    model_parser.add_argument('--noise-dim', dest="noise_dim", type=int, default=512,
                               help="noise dim for generator to create images from (default: '%(default)s')")
-    model_parser.add_argument('--no-bias', dest='usebias', action='store_false', default=True,
+    model_parser.add_argument('--no-bias', dest='use_bias', action='store_false', default=True,
                               help="deactivates use of bias in all layers")
-    model_parser.add_argument('--no-weight-scaling', dest='useweightscaling', action='store_false', default=True,
+    model_parser.add_argument('--no-weight-scaling', dest='use_weight_scaling', action='store_false', default=True,
                               help="deactivates use of weight scaling")
-    model_parser.add_argument('--no-alpha-smoothing', dest='usealphasmoothing', action='store_false', default=True,
+    model_parser.add_argument('--no-alpha-smoothing', dest='use_alpha_smoothing', action='store_false', default=True,
                               help="deactivates last block alpha smoothing")
-    model_parser.add_argument('--no-stages', dest='usestages', action='store_false', default=True,
+    model_parser.add_argument('--no-stages', dest='use_stages', action='store_false', default=True,
                               help="deactivates progressive training (only trains final stage)")
+    model_parser.add_argument('--no-epsilon-drift', dest='use_epsilon_drift', action='store_false', default=True,
+                              help="deactivates epsilon drift for discriminator loss (will be set to 0.0)")
+    model_parser.add_argument('--no-gradient-penalty', dest='use_gradient_penalty', action='store_false', default=True,
+                              help="deactivates gradient penalty for discriminator loss (will be set to 0.0)")
     # batch_size input
     batch_size_group = model_parser.add_mutually_exclusive_group(required=True)
-    batch_size_group.add_argument('--batch-size', dest='globalbatchsize', type=int, default=0,
+    batch_size_group.add_argument('--batch-size', dest='global_batch_size', type=int, default=0,
                                   help="depicts default global_batch_size to train with")
-    batch_size_group.add_argument('--replica-batch-size', dest='replicabatchsize', type=int, default=0,
+    batch_size_group.add_argument('--replica-batch-size', dest='replica_batch_size', type=int, default=0,
                                   help="depicts default per replica_batch_size to train with")
-    batch_size_group.add_argument('--node-batch-size', dest='nodebatchsize', type=int, default=0,
+    batch_size_group.add_argument('--node-batch-size', dest='node_batch_size', type=int, default=0,
                                   help="depicts default per node_batch_size to train with")
 
     # tensorflow optimizer hyperparams
     optim_parser = parser.add_argument_group(title="optimizer arguments")
-    optim_parser.add_argument('--learning-rate', dest='learningrate', type=float, default=0.001,
+    optim_parser.add_argument('--learning-rate', dest='learning_rate', type=float, default=0.001,
                               help="learningrate to train both AdamOptimizers with (default: '%(default)s')")
     optim_parser.add_argument('--beta1', dest="beta1", type=float, default=0.0,
                               help="beta1 momentum to train both AdamOptimizers with (default: '%(default)s')")
     optim_parser.add_argument('--beta2', dest="beta2", type=float, default=0.99,
                               help="beta2 momentum to train both AdamOptimizers with (default: '%(default)s')")
-    optim_parser.add_argument('--epsilon', dest="epsilon", type=float, default=1e-8,
+    optim_parser.add_argument('--adam-epsilon', dest="adam_epsilon", type=float, default=1e-8,
                               help="epsilon to train both AdamOptimizers with (default: '%(default)s')")
-    optim_parser.add_argument('--disc-repeats', dest="discrepeats", type=float, default=1.0,
-                              help="learningrate advantage of discriminator over generator (default: '%(default)s')")
+    optim_parser.add_argument('--disc-repeats', dest="disc_repeats", type=float, default=1.0,
+                              help="learning_rate advantage of discriminator over generator (default: '%(default)s')")
 
     # tensorflow execution mode
     exec_parser = parser.add_argument_group(title="execution mode arguments")
@@ -102,52 +106,52 @@ if __name__ == '__main__':
     data_parser = parser.add_argument_group(title="data pipeline arguments")
     data_parser.add_argument('--split', dest="split", choices=data_split_choices, default=data_split_choices[0],
                              help="depicts the data split for tensorflow_datasets to load (default: '%(default)s')")
-    data_parser.add_argument('--buffer-size', dest="buffersize", type=int, default=5000,
+    data_parser.add_argument('--buffer-size', dest="buffer_size", type=int, default=5000,
                              help="buffersize for TensorFlow Dataset shuffle (default: '%(default)s')")
-    data_parser.add_argument('--map-parallel-calls', dest="mapcalls", type=int,
+    data_parser.add_argument('--map-parallel-calls', dest="map_calls", type=int,
                              default=tf.data.experimental.AUTOTUNE, help="num threads for mapping functions "
                              "over dataset (default: 'tf.data.experimental.AUTOTUNE')")
-    data_parser.add_argument('--prefetch-parallel-calls', dest="prefetchcalls", type=int,
+    data_parser.add_argument('--prefetch-parallel-calls', dest="prefetch_calls", type=int,
                              default=tf.data.experimental.AUTOTUNE, help="num threads for prefetching "
                              "dataset to accelerators (default: 'tf.data.experimental.AUTOTUNE')")
-    data_parser.add_argument('--interleave-parallel-calls', dest="interleavecalls", type=int,
+    data_parser.add_argument('--interleave-parallel-calls', dest="interleave_calls", type=int,
                              default=tf.data.experimental.AUTOTUNE, help="num threads for interleaving "
                              "dataset (default: 'tf.data.experimental.AUTOTUNE')")
     data_parser.add_argument('--cache', dest="caching", default=False, action="store_true",
                              help="activates TensorFlow's dataset caching (default: '%(default)s')")
-    data_parser.add_argument('--cache-file', dest="cachefile", type=str, default=cache_file_path,
+    data_parser.add_argument('--cache-file', dest="cache_file", type=str, default=cache_file_path,
                              help="path to temporary cachefile or set to empty string \"\" to cache entire dataset in "
                              "system memory (default: '%(default)s')")
 
     # TensorBoard callbacks
     tboard_parser = parser.add_argument_group(title="tensorboard callback arguments")
-    tboard_parser.add_argument('--early-stopping', dest='earlystopping', type=int, default=0,
-                               help="stops train when val_loss stopped improving for number of epochs. 0 = disabled "
-                               "(default: '%(default)s')")
-    tboard_parser.add_argument('--checkpoint-frequency', dest='checkpointfrequency', type=int, default=1,
+    # tboard_parser.add_argument('--early-stopping', dest='early_stopping', type=int, default=0,
+    #                           help="stops train when val_loss stopped improving for number of epochs. 0 = disabled "
+    #                           "(default: '%(default)s')")
+    tboard_parser.add_argument('--checkpoint-freq', dest='checkpoint_freq', type=int, default=1,
                                help="defines ModelCheckpoint save frequency. 0 = disabled (default: '%(default)s')")
-    tboard_parser.add_argument('--eval-frequency', dest='evalfrequency', type=int, default=1,
+    tboard_parser.add_argument('--eval-freq', dest='eval_freq', type=int, default=1,
                                help="defines generator image evaluation frequency. 0 = disabled "
                                "(default: '%(default)s')")
-    tboard_parser.add_argument('--log-frequency', dest='logfrequency', type=str, choices=['epoch', 'batch', ''],
+    tboard_parser.add_argument('--log-freq', dest='log_freq', type=str, choices=['epoch', 'batch', ''],
                                default='epoch', help="defines TensorBoard logging frequency. \"\" = disabled "
                                "(default: '%(default)s')")
 
     # logging configuration
     log_parser = parser.add_argument_group(title="logging/debug arguments")
-    log_parser.add_argument('--device-placement', dest='deviceplacement', default=False, action="store_true",
+    log_parser.add_argument('--device-placement', dest='device_placement', default=False, action="store_true",
                             help="activates TensorFlow device placement")
     log_parser.add_argument('--no-log', dest="logging", default=True, action="store_false", help="deactivates logging")
-    log_parser.add_argument('--log-level', dest='loglevel', type=str, default=log_level_choices[0],
+    log_parser.add_argument('--log-level', dest='log_level', type=str, default=log_level_choices[0],
                             choices=log_level_choices, help="depicts logging level (default: '%(default)s')")
-    log_parser.add_argument('--log-dir', dest="logdir", type=str, default=output_dir,
+    log_parser.add_argument('--log-dir', dest="log_dir", type=str, default=output_dir,
                             help="depicts root directory for logging (default: '%(default)s')")
-    log_parser.add_argument('--log-filename', dest='logfile', type=str, default=log_file,
+    log_parser.add_argument('--log-filename', dest='log_file', type=str, default=log_file,
                             help="name of log file (default: '%(default)s')")
-    log_parser.add_argument('--log-format', dest='logformat', type=str,
+    log_parser.add_argument('--log-format', dest='log_format', type=str,
                             default='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                             help="defines logger message format (default: '%(default)s')")
-    log_parser.add_argument('--log-date-format', dest='logdateformat', type=str, default='%m/%d/%Y %I:%M:%S %p',
+    log_parser.add_argument('--log-date-format', dest='log_date_format', type=str, default='%m/%d/%Y %I:%M:%S %p',
                             help="defines logger timestamp format (default: '%(default)s')")
 
     # parse
@@ -158,7 +162,7 @@ if __name__ == '__main__':
         tf.compat.v1.disable_eager_execution()
 
     # device placement
-    tf.debugging.set_log_device_placement(args.deviceplacement)
+    tf.debugging.set_log_device_placement(args.device_placement)
 
     # set distribution strategy
     if args.strategy == 'default':
@@ -190,15 +194,15 @@ if __name__ == '__main__':
         assert args.ngpus > 0, f"{host}: could not resolve local GPU devices for cluster computation"
 
     # set batch_size based on user input (if no gpu devices are found, each batch is computed on one local CPU device)
-    if args.globalbatchsize:
-        args.nodebatchsize = args.globalbatchsize // args.nnodes
-        args.replicabatchsize = args.nodebatchsize // (args.ngpus if args.ngpus else 1)
-    elif args.nodebatchsize:
-        args.replicabatchsize = args.nodebatchsize // (args.ngpus if args.ngpus else 1)
-        args.globalbatchsize = args.nodebatchsize * args.nnodes
-    elif args.replicabatchsize:
-        args.nodebatchsize = args.replicabatchsize * (args.ngpus if args.ngpus else 1)
-        args.globalbatchsize = args.nodebatchsize * args.nnodes
+    if args.global_batch_size:
+        args.node_batch_size = args.global_batch_size // args.nnodes
+        args.replica_batch_size = args.node_batch_size // (args.ngpus if args.ngpus else 1)
+    elif args.node_batch_size:
+        args.replica_batch_size = args.node_batch_size // (args.ngpus if args.ngpus else 1)
+        args.global_batch_size = args.node_batch_size * args.nnodes
+    elif args.replica_batch_size:
+        args.node_batch_size = args.replica_batch_size * (args.ngpus if args.ngpus else 1)
+        args.global_batch_size = args.node_batch_size * args.nnodes
 
     # parse path inputs
     if args.is_cluster:
@@ -206,30 +210,24 @@ if __name__ == '__main__':
         dir_suffix = f"{slurm_job_id}"
     else:
         dir_suffix = f"{timestamp}-{host}"
-    args.logdir = os.path.join(os.path.abspath(os.path.realpath(os.path.expanduser(args.logdir))), dir_suffix)
-    args.outdir = os.path.join(os.path.abspath(os.path.realpath(os.path.expanduser(args.outdir))), dir_suffix)
-    args.datadir = os.path.abspath(os.path.realpath(os.path.expanduser(args.datadir)))
-    # args.cachefile might be "" if user wants to cache entire dataset in memory
-    if args.cachefile:
-        args.cachefile = os.path.abspath(os.path.realpath(os.path.expanduser(args.cachefile)))
-    log_file_path = os.path.join(args.logdir, args.logfile)
+    args.log_dir = os.path.join(os.path.abspath(os.path.realpath(os.path.expanduser(args.log_dir))), dir_suffix)
+    args.out_dir = os.path.join(os.path.abspath(os.path.realpath(os.path.expanduser(args.out_dir))), dir_suffix)
+    args.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser(args.data_dir)))
+    # args.cache_file might be "" if user wants to cache entire dataset in memory
+    if args.cache_file:
+        args.cache_file = os.path.abspath(os.path.realpath(os.path.expanduser(args.cache_file)))
+    log_file_path = os.path.join(args.log_dir, args.log_file)
 
     # store certain attributes in args
-    args.sourcedir = source_dir
-    args.workingdir = working_dir
-    args.timestamp = timestamp
-    args.host = host
-    args.summary = tf.summary.create_file_writer(args.logdir)
-    args.numexamples = 30000
-    args.startstage = 2
-    args.stopstage = int(math.log2(args.resolution))
+    args.summary = tf.summary.create_file_writer(args.log_dir)
+    args.stop_stage = int(math.log2(args.resolution))
     args.alpha = 0.0
 
     # chief creates directories as well as logfile
     if args.is_chief and args.logging:
-        create_directory(args.logdir)
-        logging.basicConfig(filename=log_file_path, format=args.logformat, level=args.loglevel, datefmt=args.logdateformat)
-        tf.get_logger().setLevel('ERROR')
+        create_directory(args.log_dir)
+        logging.basicConfig(filename=log_file_path, format=args.log_format, level=args.log_level, datefmt=args.log_date_format)
+        # tf.get_logger().setLevel('ERROR')
         logging.info(f"{host}: successfully set up logging")
         logging.info(f"{host}: TensorFlow Eager Execution is {'disabled' if args.neager else 'enabled'}.")
         logging.info(f"{host}: XLA Compiler is {'disabled' if not args.XLA else 'enabled'}.")
@@ -237,18 +235,18 @@ if __name__ == '__main__':
             logging.info(f"{host}: {len(gpu_physical_devices)}-GPU devices: physical={gpu_physical_devices}")
             logging.info(f"{host}: number of nodes in sync: {args.nnodes}")
             logging.info(f"{host}: number of replicas in sync: {args.strategy.num_replicas_in_sync}")
-            logging.info(f"{host}: global_batch_size={args.globalbatchsize}, node_batch_size={args.nodebatchsize}, "
-                         f"replica_batch_size={args.replicabatchsize}")
+            logging.info(f"{host}: global_batch_size={args.global_batch_size}, node_batch_size={args.node_batch_size}, "
+                         f"replica_batch_size={args.replica_batch_size}")
         logging.debug(f"{host}: started {__name__} with args={vars(args)}")
-    if args.is_chief and (args.saving or args.evaluate):
-        create_directory(args.outdir)
+    if args.is_chief and (args.save or args.evaluate):
+        create_directory(args.out_dir)
 
     # resolve caching file, log configuration for user (incorrect configuration might lead to OOM)
     if args.caching:
-        if args.cachefile:
-            if os.path.exists(args.cachefile):
-                raise FileExistsError(f"--cache-file {args.cachefile} already exists")
-            logging.info(f"using dataset_cache_file={args.cachefile} for dataset caching")
+        if args.cache_file:
+            if os.path.exists(args.cache_file):
+                raise FileExistsError(f"--cache-file {args.cache_file} already exists")
+            logging.info(f"using dataset_cache_file={args.cache_file} for dataset caching")
         else:
             msg = f"dataset caching is activated with --cache and --cache-file was specified as \"\". TensorFlow will "\
                   f"attempt to load the entire dataset into memory. In case of OOM specify a temporary cachefile!"
