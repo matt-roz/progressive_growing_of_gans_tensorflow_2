@@ -138,7 +138,7 @@ def train(arguments):
         mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
         with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
             mixed_tape.watch(mixed_images)
-            mixed_output = model_dis([mixed_images, arguments.alpha], training=False)
+            mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
         gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
         gradient_mixed_norm = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3])))
         gradient_penalty = tf.square(gradient_mixed_norm - wgan_target)
@@ -146,7 +146,7 @@ def train(arguments):
 
         # compute loss on tape
         with discriminator_tape:
-            _disc_stacked_loss = tf.stack((_disc_ws_loss, _disc_eps_loss, gradient_loss))
+            _disc_stacked_loss = tf.stack((_disc_ws_loss, gradient_loss, _disc_eps_loss))
             _disc_loss = tf.reduce_sum(_disc_stacked_loss)
 
         # collocate gradients from tapes
