@@ -134,7 +134,7 @@ if __name__ == '__main__':
     # tboard_parser.add_argument('--early-stopping', dest='early_stopping', type=int, default=0,
     #                           help="stops train when val_loss stopped improving for number of epochs. 0 = disabled "
     #                           "(default: '%(default)s')")
-    tboard_parser.add_argument('--checkpoint-freq', dest='checkpoint_freq', type=int, default=1,
+    tboard_parser.add_argument('--checkpoint-freq', dest='checkpoint_freq', type=int, default=27,
                                help="defines ModelCheckpoint save frequency. 0 = disabled (default: '%(default)s')")
     tboard_parser.add_argument('--eval-freq', dest='eval_freq', type=int, default=1,
                                help="defines generator image evaluation frequency. 0 = disabled "
