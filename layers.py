@@ -1,10 +1,9 @@
 import logging
 
 import tensorflow as tf
-from tensorflow.python.ops import array_ops
-from tensorflow.python.keras import activations
 from tensorflow.python.framework import tensor_shape
-import numpy as np
+
+from utils import he_initializer_scale
 
 
 class DownSampling2D(tf.keras.layers.Layer):
@@ -54,122 +53,76 @@ class PixelNormalization(tf.keras.layers.Layer):
 
 
 class CustomDense(tf.keras.layers.Dense):
-    def __init__(self,
-                 input_shape,
-                 units,
-                 he_initializer_slope=1.0,
-                 use_bias=True,
-                 use_weight_scaling=True,
-                 activation=None,
-                 **kwargs):
+    def __init__(self, input_shape, units, he_initializer_slope=1.0, use_weight_scaling=True, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
         if 'kernel_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores kernel_initializer={kwargs['kernel_initializer']}")
             del kwargs['kernel_initializer']
-        super(CustomDense, self).__init__(units=units, use_bias=use_bias, activation=None, **kwargs)
+        super(CustomDense, self).__init__(units=units, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
         self.he_initializer_slope = he_initializer_slope
         self.use_weight_scaling = use_weight_scaling
-        self.wrapper_use_bias = use_bias
-        self.wrapper_activation = activations.get(activation)
 
         # compute kernel initializer
         input_shape = tensor_shape.TensorShape(input_shape)
         last_dim = tensor_shape.dimension_value(input_shape[-1])
         kernel_shape = (last_dim, self.units)
-        self.init_scale = he_initializer_scale(shape=kernel_shape, slope=self.he_initializer_slope)
-        self.post_scale = 1.0
+        he_scale = he_initializer_scale(shape=kernel_shape, slope=self.he_initializer_slope)
         if self.use_weight_scaling:
-            self.init_scale, self.post_scale = self.post_scale, self.init_scale
-        self.kernel_initializer = tf.random_normal_initializer(stddev=self.init_scale)
+            self.conv_op_scale = he_scale
+            self.kernel_initializer = tf.random_normal_initializer()
+        else:
+            self.conv_op_scale = 1.0
+            self.kernel_initializer = tf.random_normal_initializer(0, he_scale)
 
     def build(self, input_shape):
         super(CustomDense, self).build(input_shape)
-        self.use_bias = False
-
-    def call(self, inputs):
-        outputs = self.post_scale * super(CustomDense, self).call(inputs)
-
-        if self.wrapper_use_bias:
-            outputs = tf.nn.bias_add(outputs, self.bias)
-        if self.wrapper_activation is not None:
-            return self.wrapper_activation(outputs)
-        return outputs
+        self.kernel.assign(self.conv_op_scale * self.kernel)
 
     def get_config(self):
         base_config = super(CustomDense, self).get_config()
         base_config['input_shape'] = self.input_shape
         base_config['he_initializer_slope'] = self.he_initializer_slope
         base_config['use_weight_scaling'] = self.use_weight_scaling
-        base_config['activation'] = activations.serialize(self.wrapper_activation)  # overrides base config
-        base_config['use_bias'] = self.wrapper_use_bias  # overrides base config
         return base_config
 
 
 class CustomConv2D(tf.keras.layers.Conv2D):
-    def __init__(self,
-                 input_shape,
-                 filters,
-                 kernel_size,
-                 he_initializer_slope=1.0,
-                 use_bias=True,
-                 use_weight_scaling=True,
-                 activation=None,
-                 **kwargs):
+    def __init__(self, input_shape, filters, kernel_size, he_initializer_slope=1.0, use_weight_scaling=True, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
         if 'kernel_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores kernel_initializer={kwargs['kernel_initializer']}")
             del kwargs['kernel_initializer']
-        super(CustomConv2D, self).__init__(filters=filters, kernel_size=kernel_size, use_bias=use_bias, **kwargs)
+        super(CustomConv2D, self).__init__(filters=filters, kernel_size=kernel_size, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
         self.he_initializer_slope = he_initializer_slope
         self.use_weight_scaling = use_weight_scaling
-        self.wrapper_activation = activations.get(activation)
-        self.wrapper_use_bias = use_bias
 
         # compute kernel initializer
         input_shape = tensor_shape.TensorShape(input_shape)
         input_channel = self._get_input_channel(input_shape)
         kernel_shape = self.kernel_size + (input_channel, self.filters)
-        self.init_scale = he_initializer_scale(shape=kernel_shape, slope=self.he_initializer_slope)
-        self.post_scale = 1.0
+        he_scale = he_initializer_scale(shape=kernel_shape, slope=self.he_initializer_slope)
         if self.use_weight_scaling:
-            self.init_scale, self.post_scale = self.post_scale, self.init_scale
-        self.kernel_initializer = tf.random_normal_initializer(stddev=self.init_scale)
+            self.conv_op_scale = he_scale
+            self.kernel_initializer = tf.random_normal_initializer()
+        else:
+            self.conv_op_scale = 1.0
+            self.kernel_initializer = tf.random_normal_initializer(0, he_scale)
 
     def build(self, input_shape):
         super(CustomConv2D, self).build(input_shape)
-        self.use_bias = False
-
-    def call(self, inputs, **kwargs):
-        outputs = self.post_scale * super(CustomConv2D, self).call(inputs)
-
-        if self.wrapper_use_bias:
-            if self.data_format == 'channels_first':
-                if self.rank == 1:
-                    # nn.bias_add does not accept a 1D input tensor.
-                    bias = array_ops.reshape(self.bias, (1, self.filters, 1))
-                    outputs += bias
-                else:
-                    outputs = tf.nn.bias_add(outputs, self.bias, data_format='NCHW')
-            else:
-                outputs = tf.nn.bias_add(outputs, self.bias, data_format='NHWC')
-
-        if self.wrapper_activation is not None:
-            return self.wrapper_activation(outputs)
-        return outputs
+        self.kernel.assign(self.conv_op_scale * self.kernel)
 
     def get_config(self):
         base_config = super(CustomConv2D, self).get_config()
         base_config['input_shape'] = self.input_shape
         base_config['he_initializer_slope'] = self.he_initializer_slope
         base_config['use_weight_scaling'] = self.use_weight_scaling
-        base_config['activation'] = activations.serialize(self.wrapper_activation)  # overrides base config
-        base_config['use_bias'] = self.wrapper_use_bias  # overrides base config
         return base_config
 
 
@@ -204,89 +157,4 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         return {'epsilon': self._epsilon, 'data_format': self._data_format}
 
 
-def he_initializer_scale(shape, slope=1.0):
-    fan_in = np.prod(shape[:-1])
-    return np.sqrt(2. / ((1. + slope**2) * fan_in))
 
-
-def _custom_layer_impl(apply_kernel, kernel_shape, bias_shape, activation, name,
-                       he_initializer_slope, use_weight_scaling):
-    kernel_scale = he_initializer_scale(kernel_shape, he_initializer_slope)
-    init_scale, post_scale = kernel_scale, 1.0
-    if use_weight_scaling:
-        init_scale, post_scale = post_scale, init_scale
-
-    kernel_initializer = tf.random_normal_initializer(stddev=init_scale)
-
-    bias = tf.Variable(np.zeros(shape=bias_shape, dtype=np.float32), dtype=tf.float32, name=f"{name}/bias")
-    """
-    _kernel = apply_kernel(kernel_shape, kernel_initializer)
-    # post_scale = tf.cast(post_scale, tf.float32)
-    output = tf.multiply(post_scale, _kernel, name=f"{name}/scale_multiply")
-    output = tf.add(output, bias, name=f"{name}/bias_add")
-    """
-    output = post_scale * apply_kernel(kernel_shape, kernel_initializer) + bias
-    if activation is not None:
-        output = activation(output)
-    return output
-
-
-def custom_conv2d(x,
-                  filters,
-                  kernel_size,
-                  name,
-                  strides=(1, 1),
-                  padding='SAME',
-                  activation=None,
-                  he_initializer_slope=1.0,
-                  use_weight_scaling=True):
-    if not isinstance(kernel_size, (list, tuple)):
-        kernel_size = [kernel_size] * 2
-        kernel_size = list(kernel_size)
-
-    def _apply_kernel(kernel_shape, kernel_initializer):
-        return tf.keras.layers.Conv2D(
-            filters=filters,
-            kernel_size=kernel_shape[0:2],
-            strides=strides,
-            padding=padding,
-            use_bias=False,
-            kernel_initializer=kernel_initializer,
-            name=name
-        )(x)
-
-    return _custom_layer_impl(
-        _apply_kernel,
-        kernel_shape=kernel_size + [x.shape.as_list()[3], filters],
-        bias_shape=(filters,),
-        activation=activation,
-        name=name,
-        he_initializer_slope=he_initializer_slope,
-        use_weight_scaling=use_weight_scaling
-    )
-
-
-def custom_dense(x,
-                 units,
-                 name,
-                 activation=None,
-                 he_initializer_slope=1.0,
-                 use_weight_scaling=True):
-
-    def _apply_kernel(kernel_shape, kernel_initializer):
-        return tf.keras.layers.Dense(
-            kernel_shape[1],
-            use_bias=False,
-            kernel_initializer=kernel_initializer,
-            name=name
-        )(x)
-
-    return _custom_layer_impl(
-        _apply_kernel,
-        kernel_shape=(x.shape.as_list()[-1], units),
-        bias_shape=(units,),
-        activation=activation,
-        name=name,
-        he_initializer_slope=he_initializer_slope,
-        use_weight_scaling=use_weight_scaling
-    )
