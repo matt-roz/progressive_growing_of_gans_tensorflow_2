@@ -1,5 +1,5 @@
 import os
-from typing import Union, Sequence
+from typing import Union, Sequence, Optional
 import logging
 
 import tensorflow as tf
@@ -40,7 +40,7 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
 
 
 def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: int, output_dir, prefix: str = "",
-                     alpha: float = 0.0, stage: int = 0) -> None:
+                     alpha: Optional[tf.Variable] = None, stage: int = 0) -> None:
     assert isinstance(stage, int) and (stage == 0 or stage >= 2)
     # ToDo M.Rozanski: adapt flag for data_format 'NCHW' (right now 'NHWC' only)
     # inference on generator to get images
@@ -49,7 +49,7 @@ def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: 
         fixed_predictions = generator([random_noise, alpha], training=False).numpy()
         rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False).numpy()
     else:
-        alpha = 1.0
+        alpha = (1.0, )
         fixed_predictions = generator([random_noise, alpha], training=False)[stage - 2].numpy()
         rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False)[stage - 2].numpy()
     num_images, width, height, channels = fixed_predictions.shape
@@ -69,9 +69,9 @@ def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: 
 
     # file name
     if not stage:
-        name = f"{prefix}epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
+        name = f"{prefix}epoch-{epoch+1:04d}_alpha-{alpha[0]:.3f}_shape-{width}x{height}x{channels}.png"
     else:
-        name = f"{prefix}final_gen_epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
+        name = f"{prefix}final_gen_epoch-{epoch+1:04d}_alpha-{alpha[0]:.3f}_shape-{width}x{height}x{channels}.png"
     image.save(os.path.join(output_dir, name))
 
     # clean up
