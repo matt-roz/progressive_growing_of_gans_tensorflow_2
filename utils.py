@@ -49,12 +49,13 @@ def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: 
         fixed_predictions = generator([random_noise, alpha], training=False).numpy()
         rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False).numpy()
     else:
+        # workaround for scalar shape=() issue: https://github.com/tensorflow/tensorflow/issues/14384
         alpha = tf.constant((1.0, ), dtype=tf.float32)
         fixed_predictions = generator([random_noise, alpha], training=False)[stage - 2].numpy()
         rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False)[stage - 2].numpy()
     num_images, width, height, channels = fixed_predictions.shape
 
-    # from tf.float32 [-1, 1] to np.uint8 [0, 244]
+    # from tf.float32 [-1, 1] to np.uint8 [0, 255]
     fixed_predictions = 255 * ((fixed_predictions + 1.0) / 2.0)
     rand_predictions = 255 * ((rand_predictions + 1.0) / 2.0)
     fixed_predictions.astype(dtype=np.uint8, copy=False)
