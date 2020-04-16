@@ -171,11 +171,11 @@ def generator_paper(
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 0.0, use_weight_scaling, use_bias=use_bias,
+        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
                           padding='same', name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
         _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
-        _x = CustomConv2D(_x.shape[1:], num_features[stage], (3, 3), 0.0, use_weight_scaling, use_bias=use_bias,
+        _x = CustomConv2D(_x.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
                           padding='same', name=f'block_{stage}/conv2d_2')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
         _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
@@ -194,7 +194,7 @@ def generator_paper(
     features = Reshape(_target_shape, name='block_2/feature_reshape')(features)
     features = LeakyReLU(leaky_alpha, name='block_2/activation_1')(features)
     features = PixelNormalization(name='block_2/pixel_norm_1')(features)
-    features = CustomConv2D(features.shape[1:], num_features[2], (3, 3), 0.0, use_weight_scaling, use_bias=use_bias,
+    features = CustomConv2D(features.shape[1:], num_features[2], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
                             padding='same', name=f'block_2/conv2d_1')(features)
     features = LeakyReLU(leaky_alpha, name='block_2/activation_2')(features)
     features = PixelNormalization(name='block_2/pixel_norm_2')(features)
@@ -244,16 +244,16 @@ def discriminator_paper(
     alpha = tf.keras.layers.Input(shape=tuple(), batch_size=1, name='alpha_input', dtype=tf.float32)
 
     def from_rgb(value: tf.Tensor, stage: int):
-        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 0.0, use_weight_scaling, use_bias=use_bias,
+        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
                           padding='same',  name=f'block_{stage}/fromRGB')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_rgb')(_x)
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 0.0, use_weight_scaling, use_bias=use_bias,
+        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
                           padding='same', name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = CustomConv2D(value.shape[1:], num_features[stage - 1], (3, 3), 0.0, use_weight_scaling, use_bias=use_bias,
+        _x = CustomConv2D(value.shape[1:], num_features[stage - 1], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
                           padding='same', name=f'block_{stage}/conv2d_2')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
         return _x
@@ -279,7 +279,7 @@ def discriminator_paper(
 
     # final block 2
     x = StandardDeviationLayer(name=f'block_2/stddev_layer')(features)
-    x = CustomConv2D(x.shape[1:], num_features[2], (3, 3), 0.0, use_weight_scaling, use_bias=use_bias, padding='same',
+    x = CustomConv2D(x.shape[1:], num_features[2], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias, padding='same',
                      name=f'block_2/conv2d_1')(x)
     x = LeakyReLU(leaky_alpha, name=f'block_2/activation_1')(x)
     _units = x.shape[-1]
