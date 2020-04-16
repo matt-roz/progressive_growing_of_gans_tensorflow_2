@@ -62,7 +62,6 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.adam_epsilon,
             name='adam_generator',
-            # clipvalue=0.01
         )
         optimizer_dis = tf.keras.optimizers.Adam(
             learning_rate=arguments.learning_rate * arguments.disc_repeats,
@@ -70,7 +69,6 @@ def train(arguments):
             beta_2=arguments.beta2,
             epsilon=arguments.adam_epsilon,
             name='adam_discriminator',
-            # clipvalue=0.01
         )
 
         # get model
@@ -119,13 +117,13 @@ def train(arguments):
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noise_dim])
 
-        # forward pass: inference through both models on tape to create predictions
         with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
+            # forward pass: inference through both models on tape to create predictions
             fake_images = model_gen([noise, arguments.alpha], training=True)
             real_image_guesses = model_dis([image_batch, arguments.alpha], training=True)
             fake_image_guesses = model_dis([fake_images, arguments.alpha], training=True)
 
-            # create mixed images for gradient loss
+            # compute gradient penalty: create mixed images for gradient loss
             if arguments.use_gradient_penalty:
                 mixing_factors = tf.random.uniform([local_batch_size, 1, 1, 1], 0.0, 1.0)
                 mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
@@ -148,11 +146,9 @@ def train(arguments):
         # collocate gradients from tapes
         gradients_generator = generator_tape.gradient(_gen_loss, model_gen.trainable_variables)
         gradients_discriminator = discriminator_tape.gradient(_disc_loss, model_dis.trainable_variables)
-        gen_grad_vars = zip(gradients_generator, model_gen.trainable_variables)
-        dis_grad_vars = zip(gradients_discriminator, model_dis.trainable_variables)
         # backward pass: apply gradients via optimizers to update models
-        optimizer_gen.apply_gradients(gen_grad_vars)
-        optimizer_dis.apply_gradients(dis_grad_vars)
+        optimizer_gen.apply_gradients(zip(gradients_generator, model_gen.trainable_variables))
+        optimizer_dis.apply_gradients(zip(gradients_discriminator, model_dis.trainable_variables))
         return _gen_loss, _disc_stacked_loss
 
     def epoch_step(dataset: tf.data.Dataset, num_epoch: int, num_steps: int) -> Tuple[float, tf.Tensor, float]:
@@ -200,7 +196,7 @@ def train(arguments):
     # train loop
     current_stage = 2 if arguments.use_stages else arguments.stop_stage
     epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
-    batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 384, 5: 256, 6: 178, 7: 128, 8: 64, 9: 32, 10: 16}
+    batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 384, 5: 128, 6: 64, 7: 24, 8: 14, 9: 6, 10: 4}
 
     train_dataset, num_examples = get_dataset_pipeline(
         name=f"celeb_a_hq/{2**current_stage}",
@@ -331,7 +327,6 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.adam_epsilon,
                 name='adam_generator',
-                # clipvalue=0.01
             )
             optimizer_dis = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learning_rate * arguments.disc_repeats,
@@ -339,5 +334,4 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.adam_epsilon,
                 name='adam_discriminator',
-                # clipvalue=0.01
             )
