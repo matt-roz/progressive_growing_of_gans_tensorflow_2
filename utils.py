@@ -115,9 +115,9 @@ def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model,
     # ToDo M. Rozanski: implement missing source_layer.name logic ?
 
 
-def he_initializer_scale(shape, slope=1.0):
+def he_initializer_scale(shape, gain: float = 2.0):
     fan_in = np.prod(shape[:-1])
-    return np.sqrt(2. / ((1. + slope**2) * fan_in))
+    return np.sqrt(gain / fan_in)
 
 
 @tf.function

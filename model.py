@@ -189,7 +189,7 @@ def generator_paper(
     # project from noise to minimum features, apply block 2 to features
     _target_shape = (4, 4, num_features[2])
     _units = int(np.prod(_target_shape))
-    features = CustomDense(x.shape[1:], _units, 1.0, use_weight_scaling, use_bias=use_bias,
+    features = CustomDense(x.shape[1:], _units, 0.125, use_weight_scaling, use_bias=use_bias,
                            name='block_2/dense_projector')(x)
     features = Reshape(_target_shape, name='block_2/feature_reshape')(features)
     features = LeakyReLU(leaky_alpha, name='block_2/activation_1')(features)
@@ -284,7 +284,7 @@ def discriminator_paper(
     x = LeakyReLU(leaky_alpha, name=f'block_2/activation_1')(x)
     _units = x.shape[-1]
     x = Flatten(name='block_2/flatten')(x)
-    x = CustomDense(x.shape[1:], _units, 1.0, use_weight_scaling, use_bias=use_bias, name='block_2/dense_1')(x)
+    x = CustomDense(x.shape[1:], _units, 2.0, use_weight_scaling, use_bias=use_bias, name='block_2/dense_1')(x)
     x = LeakyReLU(leaky_alpha, name=f'block_2/activation_2')(x)
     x = CustomDense(x.shape[1:], 1, 1.0, use_weight_scaling, use_bias=use_bias, name='block_2/dense_2')(x)
 

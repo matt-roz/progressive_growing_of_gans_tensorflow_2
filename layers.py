@@ -53,7 +53,7 @@ class PixelNormalization(tf.keras.layers.Layer):
 
 
 class CustomDense(tf.keras.layers.Dense):
-    def __init__(self, input_shape, units, he_initializer_slope=1.0, use_weight_scaling=True, **kwargs):
+    def __init__(self, input_shape, units, gain=2.0, use_weight_scaling=True, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
@@ -62,14 +62,14 @@ class CustomDense(tf.keras.layers.Dense):
             del kwargs['kernel_initializer']
         super(CustomDense, self).__init__(units=units, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
-        self.he_initializer_slope = he_initializer_slope
+        self.gain = gain
         self.use_weight_scaling = use_weight_scaling
 
         # compute kernel initializer
         input_shape = tensor_shape.TensorShape(input_shape)
         last_dim = tensor_shape.dimension_value(input_shape[-1])
         kernel_shape = (last_dim, self.units)
-        he_scale = he_initializer_scale(shape=kernel_shape, slope=self.he_initializer_slope)
+        he_scale = he_initializer_scale(shape=kernel_shape, gain=self.gain)
         if self.use_weight_scaling:
             self.conv_op_scale = he_scale
             self.kernel_initializer = tf.random_normal_initializer()
@@ -84,13 +84,13 @@ class CustomDense(tf.keras.layers.Dense):
     def get_config(self):
         base_config = super(CustomDense, self).get_config()
         base_config['input_shape'] = self.input_shape
-        base_config['he_initializer_slope'] = self.he_initializer_slope
+        base_config['gain'] = self.gain
         base_config['use_weight_scaling'] = self.use_weight_scaling
         return base_config
 
 
 class CustomConv2D(tf.keras.layers.Conv2D):
-    def __init__(self, input_shape, filters, kernel_size, he_initializer_slope=1.0, use_weight_scaling=True, **kwargs):
+    def __init__(self, input_shape, filters, kernel_size, gain=2.0, use_weight_scaling=True, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
@@ -99,14 +99,14 @@ class CustomConv2D(tf.keras.layers.Conv2D):
             del kwargs['kernel_initializer']
         super(CustomConv2D, self).__init__(filters=filters, kernel_size=kernel_size, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
-        self.he_initializer_slope = he_initializer_slope
+        self.gain = gain
         self.use_weight_scaling = use_weight_scaling
 
         # compute kernel initializer
         input_shape = tensor_shape.TensorShape(input_shape)
         input_channel = self._get_input_channel(input_shape)
         kernel_shape = self.kernel_size + (input_channel, self.filters)
-        he_scale = he_initializer_scale(shape=kernel_shape, slope=self.he_initializer_slope)
+        he_scale = he_initializer_scale(shape=kernel_shape, gain=self.gain)
         if self.use_weight_scaling:
             self.conv_op_scale = he_scale
             self.kernel_initializer = tf.random_normal_initializer()
@@ -121,7 +121,7 @@ class CustomConv2D(tf.keras.layers.Conv2D):
     def get_config(self):
         base_config = super(CustomConv2D, self).get_config()
         base_config['input_shape'] = self.input_shape
-        base_config['he_initializer_slope'] = self.he_initializer_slope
+        base_config['gain'] = self.gain
         base_config['use_weight_scaling'] = self.use_weight_scaling
         return base_config
 
