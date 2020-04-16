@@ -68,7 +68,7 @@ class CustomDense(tf.keras.layers.Dense):
         if 'kernel_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores kernel_initializer={kwargs['kernel_initializer']}")
             del kwargs['kernel_initializer']
-        super(CustomDense, self).__init__(units=units, use_bias=True, activation=None, **kwargs)
+        super(CustomDense, self).__init__(units=units, use_bias=use_bias, activation=None, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
         self.he_initializer_slope = he_initializer_slope
         self.use_weight_scaling = use_weight_scaling
@@ -124,7 +124,7 @@ class CustomConv2D(tf.keras.layers.Conv2D):
         if 'kernel_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores kernel_initializer={kwargs['kernel_initializer']}")
             del kwargs['kernel_initializer']
-        super(CustomConv2D, self).__init__(filters=filters, kernel_size=kernel_size, use_bias=True, **kwargs)
+        super(CustomConv2D, self).__init__(filters=filters, kernel_size=kernel_size, use_bias=use_bias, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
         self.he_initializer_slope = he_initializer_slope
         self.use_weight_scaling = use_weight_scaling
