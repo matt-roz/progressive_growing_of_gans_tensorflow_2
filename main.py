@@ -61,9 +61,11 @@ if __name__ == '__main__':
     model_parser.add_argument('--wgan-lambda', dest='wgan_lambda', type=float, default=10.0,
                               help="lambda for discriminator gradient penalty loss (default: '%(default)s')")
     model_parser.add_argument('--wgan-target', dest='wgan_target', type=float, default=1.0,
-                              help="target for discriminator gradient penalty loss loss (default: '%(default)s')")
+                              help="target for discriminator gradient penalty loss (default: '%(default)s')")
     model_parser.add_argument('--wgan-epsilon', dest='wgan_epsilon', type=float, default=0.001,
-                              help="epsilon for discriminator epsilon drift loss loss (default: '%(default)s')")
+                              help="epsilon for discriminator epsilon drift loss (default: '%(default)s')")
+    model_parser.add_argument('--alpha', dest='alpha', type=float, default=0.0,
+                              help="initial alpha at each stage too start smoothing from (default: '%(default)s')")
     model_parser.add_argument('--no-bias', dest='use_bias', action='store_false', default=True,
                               help="deactivates use of bias in all layers")
     model_parser.add_argument('--no-weight-scaling', dest='use_weight_scaling', action='store_false', default=True,
@@ -162,6 +164,7 @@ if __name__ == '__main__':
 
     # parse
     args = parser.parse_args()
+    assert 0.0 <= args.alpha <= 1.0, f"--alpha must be within [0.0, 1.0] but received {args.alpha} instead"
 
     # tensorflow execution mode
     if args.neager:
@@ -227,7 +230,6 @@ if __name__ == '__main__':
     # store certain attributes in args
     args.summary = tf.summary.create_file_writer(args.log_dir)
     args.stop_stage = int(math.log2(args.resolution))
-    args.alpha = 0.0
 
     # chief creates directories as well as logfile
     if args.is_chief and args.logging:
@@ -243,7 +245,7 @@ if __name__ == '__main__':
             logging.info(f"{host}: number of replicas in sync: {args.strategy.num_replicas_in_sync}")
             logging.info(f"{host}: global_batch_size={args.global_batch_size}, node_batch_size={args.node_batch_size}, "
                          f"replica_batch_size={args.replica_batch_size}")
-        logging.debug(f"{host}: started {__name__} with args={vars(args)}")
+        logging.info(f"{host}: started {__name__} with args={vars(args)}")
     if args.is_chief and (args.save or args.evaluate):
         create_directory(args.out_dir)
 

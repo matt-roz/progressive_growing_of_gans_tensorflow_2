@@ -109,7 +109,10 @@ def train(arguments):
         wasserstein_loss = tf.reduce_mean(fake_output - real_output)
 
         # epsilon drift penalty
-        epsilon_loss = tf.reduce_mean(tf.square(real_output)) * arguments.wgan_epsilon
+        if arguments.use_epsilon_drift:
+            epsilon_loss = tf.reduce_mean(tf.square(real_output)) * arguments.wgan_epsilon
+        else:
+            epsilon_loss = 0.0
         return wasserstein_loss, epsilon_loss
 
     @tf.function
@@ -127,15 +130,18 @@ def train(arguments):
             fake_image_guesses = model_dis([fake_images, alpha_var], training=True)
 
             # create mixed images for gradient loss
-            mixing_factors = tf.random.uniform([local_batch_size, 1, 1, 1], 0.0, 1.0)
-            mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
-            with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
-                mixed_tape.watch(mixed_images)
-                mixed_output = model_dis([mixed_images, alpha_var], training=True)
-            gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
-            gradient_mixed_norm = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3])))
-            gradient_penalty = tf.square(gradient_mixed_norm - arguments.wgan_target)
-            gradient_loss = gradient_penalty * (arguments.wgan_lambda / (arguments.wgan_target ** 2))
+            if arguments.use_gradient_penalty:
+                mixing_factors = tf.random.uniform([local_batch_size, 1, 1, 1], 0.0, 1.0)
+                mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
+                with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
+                    mixed_tape.watch(mixed_images)
+                    mixed_output = model_dis([mixed_images, alpha_var], training=True)
+                gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
+                gradient_mixed_norm = tf.reduce_mean(tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3])))
+                gradient_penalty = tf.square(gradient_mixed_norm - arguments.wgan_target)
+                gradient_loss = gradient_penalty * (arguments.wgan_lambda / (arguments.wgan_target ** 2))
+            else:
+                gradient_loss = 0.0
 
             # calculate losses
             _gen_loss = generator_loss(fake_image_guesses)
