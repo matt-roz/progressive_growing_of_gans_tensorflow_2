@@ -1,6 +1,7 @@
 import tensorflow as tf
 import numpy as np
 
+
 class DownSampling2D(tf.keras.layers.Layer):
     def __init__(self, factor: int = 2, data_format: str = 'NHWC', *args, **kwargs):
         super().__init__(*args, **kwargs)
