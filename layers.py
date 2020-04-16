@@ -94,9 +94,13 @@ def _custom_layer_impl(apply_kernel, kernel_shape, bias_shape, activation, name,
     kernel_initializer = tf.random_normal_initializer(stddev=init_scale)
 
     bias = tf.Variable(np.zeros(shape=bias_shape, dtype=np.float32), dtype=tf.float32, name=f"{name}/bias")
-
+    """
+    _kernel = apply_kernel(kernel_shape, kernel_initializer)
+    # post_scale = tf.cast(post_scale, tf.float32)
+    output = tf.multiply(post_scale, _kernel, name=f"{name}/scale_multiply")
+    output = tf.add(output, bias, name=f"{name}/bias_add")
+    """
     output = post_scale * apply_kernel(kernel_shape, kernel_initializer) + bias
-
     if activation is not None:
         output = activation(output)
     return output

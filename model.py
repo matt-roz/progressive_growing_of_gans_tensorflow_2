@@ -270,10 +270,14 @@ def discriminator_paper(
         # _x = Conv2D(filters=num_features[stage], kernel_size=(3, 3), strides=(1, 1), padding='same',
         #            use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_1')(value)
         _x = custom_conv2d(x=value, filters=num_features[stage], kernel_size=3, strides=(1, 1),
-                           he_initializer_slope=0.0, )
+                           he_initializer_slope=0.0, name=f'block_{stage}/conv2d_1',
+                           use_weight_scaling=use_weight_scaling)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = Conv2D(filters=num_features[stage - 1], kernel_size=(3, 3), strides=(1, 1), padding='same',
-                    use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_2')(_x)
+        # _x = Conv2D(filters=num_features[stage - 1], kernel_size=(3, 3), strides=(1, 1), padding='same',
+        #            use_bias=use_bias, kernel_initializer='he_normal', name=f'block_{stage}/conv2d_2')(_x)
+        _x = custom_conv2d(x=_x, filters=num_features[stage - 1], kernel_size=3, strides=(1, 1),
+                           he_initializer_slope=0.0, name=f'block_{stage}/conv2d_2',
+                           use_weight_scaling=use_weight_scaling)
         _x = LeakyReLU(alpha=leaky_alpha, name=f'block_{stage}/activation_2')(_x)
         return _x
 
@@ -298,12 +302,16 @@ def discriminator_paper(
 
     # final block 2
     x = StandardDeviationLayer(name=f'block_2/stddev_layer')(features)
-    x = Conv2D(filters=num_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
-               kernel_initializer='he_normal', name=f'block_2/conv2d_1')(x)
+    # x = Conv2D(filters=num_features[2], kernel_size=(3, 3), strides=(1, 1), padding='same', use_bias=use_bias,
+    #           kernel_initializer='he_normal', name=f'block_2/conv2d_1')(x)
+    x = custom_conv2d(x=x, filters=num_features[2], kernel_size=3, strides=(1, 1),
+                      name=f'block_2/conv2d_1', use_weight_scaling=use_weight_scaling)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_2/activation_1')(x)
     x = Flatten(name='block_2/flatten')(x)
-    x = Dense(units=512, use_bias=use_bias, kernel_initializer='he_normal', name='block_2/dense_1')(x)
+    # x = Dense(units=512, use_bias=use_bias, kernel_initializer='he_normal', name='block_2/dense_1')(x)
+    x = custom_dense(x=x, units=512,  name='block_2/dense_1', use_weight_scaling=use_weight_scaling)
     x = LeakyReLU(alpha=leaky_alpha, name=f'block_2/activation_2')(x)
-    x = Dense(units=1, use_bias=use_bias, kernel_initializer='he_normal', activation='linear', name='block_2/dense_2')(x)
+    # x = Dense(units=1, use_bias=use_bias, kernel_initializer='he_normal', activation='linear', name='block_2/dense_2')(x)
+    x = custom_dense(x=x, units=1, name='block_2/dense_2', use_weight_scaling=use_weight_scaling)
 
     return tf.keras.models.Model(inputs=[inputs, alpha], outputs=x, name=name)
