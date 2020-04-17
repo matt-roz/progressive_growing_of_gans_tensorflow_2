@@ -53,6 +53,8 @@ if __name__ == '__main__':
                               help="epochs until stage is increased (default: '%(default)s')")
     model_parser.add_argument('--leaky-alpha', dest='leaky_alpha', type=float, default=0.2,
                               help="alpha for LeakyReLU activations (default: '%(default)s')")
+    model_parser.add_argument('--generator-EMA', dest='generator_ema', type=float, default=0.999,
+                              help="exponential moving average after each train_step (default: '%(default)s')")
     model_parser.add_argument('--resolution', dest='resolution', type=int, choices=resolution_choices,
                               default=resolution_choices[-1], help="stopping resolution for progressive GAN "
                               "(default: '%(default)s')")
@@ -167,6 +169,7 @@ if __name__ == '__main__':
     # parse
     args = parser.parse_args()
     assert 0.0 <= args.alpha <= 1.0, f"--alpha must be within [0.0, 1.0] but received {args.alpha} instead"
+    assert 0.0 <= args.generator_ema < 1.0, f"--generator-EMA must be within [0.0, 1.0) but received {args.generator_ema} instead"
 
     # tensorflow execution mode
     if args.neager:

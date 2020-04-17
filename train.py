@@ -110,7 +110,7 @@ def train(arguments):
             batch_gen_loss, batch_dis_loss = train_step(image_batch=image_batch, local_batch_size=batch_size)
 
             # smooth available weights from current_stage model_gen into final generator
-            transfer_weights(source_model=model_gen, target_model=final_gen, beta=0.999)
+            transfer_weights(source_model=model_gen, target_model=final_gen, beta=arguments.generator_ema)
 
             # compute moving average of loss metrics
             _size = tf.cast(batch_size, tf.float32)
