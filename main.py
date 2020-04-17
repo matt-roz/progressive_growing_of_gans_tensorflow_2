@@ -237,7 +237,7 @@ if __name__ == '__main__':
     if args.is_chief and args.logging:
         create_directory(args.log_dir)
         logging.basicConfig(filename=log_file_path, format=args.log_format, level=args.log_level, datefmt=args.log_date_format)
-        # ToDo: move this in utils and write a better logging function
+        # TODO(M. Rozanski): move this in utils and write a better logging function
         tf_log = tf.get_logger()
         file_hdlr = logging.FileHandler(filename=log_file_path, mode='w')
         file_hdlr.setFormatter(logging.Formatter(fmt=args.log_format, datefmt=args.log_date_format))
