@@ -189,6 +189,8 @@ class CustomDense(tf.keras.layers.Dense):
         base_config['use_weight_scaling'] = self.use_weight_scaling
         base_config['activation'] = activations.serialize(self._wrapper_activation)  # overrides base config
         base_config['use_bias'] = self._wrapper_use_bias                             # overrides base config
+        base_config.pop('bias_initializer', None)
+        base_config.pop('kernel_initializer', None)
         return base_config
 
 
@@ -278,4 +280,6 @@ class CustomConv2D(tf.keras.layers.Conv2D):
         base_config['use_weight_scaling'] = self.use_weight_scaling
         base_config['activation'] = activations.serialize(self._wrapper_activation)  # overrides base config
         base_config['use_bias'] = self._wrapper_use_bias                             # overrides base config
+        base_config.pop('bias_initializer', None)
+        base_config.pop('kernel_initializer', None)
         return base_config
