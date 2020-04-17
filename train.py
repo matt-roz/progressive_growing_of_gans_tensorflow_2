@@ -70,10 +70,11 @@ def train(arguments):
             if arguments.use_gradient_penalty:
                 mixing_factors = tf.random.uniform([local_batch_size, 1, 1, 1], 0.0, 1.0)
                 mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
-                with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
-                    mixed_tape.watch(mixed_images)
-                    mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
-                gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
+                with discriminator_tape.stop_recording():
+                    with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
+                        mixed_tape.watch(mixed_images)
+                        mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
+                    gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
                 gradient_mixed_norm = tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3]))
                 gradient_penalty = tf.reduce_mean(tf.square(gradient_mixed_norm - arguments.wgan_target))
                 gradient_loss = gradient_penalty * (arguments.wgan_lambda / (arguments.wgan_target ** 2))
@@ -221,13 +222,13 @@ def train(arguments):
 
         # update log files and tqdm status message
         status_message = f"sec={epoch_duration:.3f}, gen_loss={gen_loss:.3f}, dis_loss={tf.reduce_sum(dis_loss):.3f}"
-        logging.info(f"finished epoch-{epoch+1:04d} with {status_message}")
+        logging.info(f"Finished epoch-{epoch+1:04d} with {status_message}")
         epochs.set_postfix_str(status_message)
 
         # check stage increase
         if (epoch + 1) % arguments.epochs_per_stage == 0 and current_stage < arguments.stop_stage:
             stage_duration = time.time() - stage_start_time
-            logging.info(f"Successfully completed stage={current_stage} in {stage_duration:.3f}s at epoch={epoch}.")
+            logging.info(f"Successfully completed stage={current_stage} in {stage_duration:.3f}s after epoch={epoch+1}")
             # increment stage, get dataset pipeline for new images, instantiate next stage models
             current_stage += 1
             train_dataset, num_examples = get_dataset_pipeline(
