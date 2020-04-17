@@ -1,4 +1,5 @@
 import os
+import gc
 import time
 import logging
 from typing import Tuple
@@ -23,17 +24,15 @@ def train(arguments):
             beta_1=arguments.beta1,
             beta_2=arguments.beta2,
             epsilon=arguments.adam_epsilon,
-            name='adam_generator',
-        )
+            name='adam_generator')
         optimizer_dis = tf.keras.optimizers.Adam(
             learning_rate=arguments.learning_rate * arguments.disc_repeats,
             beta_1=arguments.beta1,
             beta_2=arguments.beta2,
             epsilon=arguments.adam_epsilon,
-            name='adam_discriminator',
-        )
+            name='adam_discriminator')
 
-        # get model
+        # instantiate target models to train, log summary
         alpha_step_per_image = (1.0 - arguments.alpha) / (arguments.epochs_per_stage * 30000 / 2)
         final_gen = generator_paper(
             noise_dim=arguments.noise_dim,
@@ -42,16 +41,15 @@ def train(arguments):
             use_weight_scaling=arguments.use_weight_scaling,
             use_alpha_smoothing=arguments.use_alpha_smoothing,
             return_all_outputs=True,
-            name='final_generator'
-        )
+            name='final_generator')
         model_gen = final_gen
         model_dis = discriminator_paper(
             stop_stage=arguments.stop_stage,
             use_bias=arguments.use_bias,
             use_weight_scaling=arguments.use_weight_scaling,
             use_alpha_smoothing=arguments.use_alpha_smoothing,
-            name='final_discriminator'
-        )
+            name='final_discriminator')
+        logging.info(f"Successfully instantiated the following final models {model_dis.name} and {model_gen.name}")
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
         model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
 
@@ -83,8 +81,12 @@ def train(arguments):
                 gradient_loss = 0.0
 
             # calculate losses
-            _gen_loss = generator_loss(fake_image_guesses)
-            _disc_ws_loss, _disc_eps_loss = discriminator_loss(real_image_guesses, fake_image_guesses, arguments.wgan_epsilon, arguments.use_epsilon_drift)
+            _gen_loss = generator_loss(fake_output=fake_image_guesses)
+            _disc_ws_loss, _disc_eps_loss = discriminator_loss(
+                real_output=real_image_guesses,
+                fake_output=fake_image_guesses,
+                wgan_epsilon=arguments.wgan_epsilon,
+                use_epsilon_drift=arguments.use_epsilon_drift)
             _disc_stacked_loss = tf.stack((_disc_ws_loss, gradient_loss, _disc_eps_loss))
             _disc_loss = tf.reduce_sum(_disc_stacked_loss)
 
@@ -131,9 +133,9 @@ def train(arguments):
                 arguments.alpha = tf.minimum(arguments.alpha + alpha_step_per_image * _size, 1.0)
 
             # additional chief tasks during training
-            batch_status_message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={tf.reduce_sum(batch_dis_loss):.3f}"
-            dataset.set_postfix_str(batch_status_message)
-            logging.debug(batch_status_message)
+            message = f"batch_gen_loss={batch_gen_loss:.3f}, batch_dis_loss={tf.reduce_sum(batch_dis_loss):.3f}"
+            dataset.set_postfix_str(message)
+            logging.debug(message)
             _current_step += 1
 
         return _epoch_gen_loss, _epoch_dis_loss, _image_count
@@ -154,8 +156,7 @@ def train(arguments):
         interleave_parallel_calls=arguments.interleave_calls,
         prefetch_parallel_calls=arguments.prefetch_calls,
         dataset_caching=arguments.caching,
-        dataset_cache_file=arguments.cache_file
-    )
+        dataset_cache_file=arguments.cache_file)
     image_shape = train_dataset.element_spec.shape[1:]
     model_gen = generator_paper(
         noise_dim=arguments.noise_dim,
@@ -163,24 +164,24 @@ def train(arguments):
         use_bias=arguments.use_bias,
         use_weight_scaling=arguments.use_weight_scaling,
         use_alpha_smoothing=arguments.use_alpha_smoothing,
-        name=f"generator_stage_{current_stage}"
-    )
+        name=f"generator_stage_{current_stage}")
     model_dis = discriminator_paper(
         input_shape=image_shape,
         stop_stage=current_stage,
         use_bias=arguments.use_bias,
         use_weight_scaling=arguments.use_weight_scaling,
         use_alpha_smoothing=arguments.use_alpha_smoothing,
-        name=f"discriminator_stage_{current_stage}"
-    )
-    transfer_weights(source_model=model_gen, target_model=final_gen)
+        name=f"discriminator_stage_{current_stage}")
+    transfer_weights(source_model=model_gen, target_model=final_gen, beta=0.0)  # force same initialization
+    logging.info(f"Successfully instantiated {model_dis.name} and {model_gen.name} for stage={current_stage}")
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
 
-    # metrics
+    # counters, timings, etc.
     total_image_count = 0
     steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
+    stage_start_time = time.time()
 
     for epoch in epochs:
         # make an epoch step
@@ -225,7 +226,9 @@ def train(arguments):
 
         # check stage increase
         if (epoch + 1) % arguments.epochs_per_stage == 0 and current_stage < arguments.stop_stage:
-            arguments.alpha = 0.0
+            stage_duration = stage_start_time - time.time()
+            logging.info(f"Successfully completed stage={current_stage} in {stage_duration:.3f}s at epoch={epoch}.")
+            # increment stage, get dataset pipeline for new images, instantiate next stage models
             current_stage += 1
             train_dataset, num_examples = get_dataset_pipeline(
                 name=f"celeb_a_hq/{2**current_stage}",
@@ -238,45 +241,48 @@ def train(arguments):
                 interleave_parallel_calls=arguments.interleave_calls,
                 prefetch_parallel_calls=arguments.prefetch_calls,
                 dataset_caching=arguments.caching,
-                dataset_cache_file=arguments.cache_file
-            )
+                dataset_cache_file=arguments.cache_file)
             image_shape = train_dataset.element_spec.shape[1:]
-            steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
-            epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             _model_gen = generator_paper(
                 noise_dim=arguments.noise_dim,
                 stop_stage=current_stage,
                 use_bias=arguments.use_bias,
                 use_weight_scaling=arguments.use_weight_scaling,
                 use_alpha_smoothing=arguments.use_alpha_smoothing,
-                name=f"generator_stage_{current_stage}"
-            )
+                name=f"generator_stage_{current_stage}")
             _model_dis = discriminator_paper(
                 input_shape=image_shape,
                 stop_stage=current_stage,
                 use_bias=arguments.use_bias,
                 use_weight_scaling=arguments.use_weight_scaling,
                 use_alpha_smoothing=arguments.use_alpha_smoothing,
-                name=f"discriminator_stage_{current_stage}"
-            )
-            transfer_weights(source_model=model_gen, target_model=_model_gen)
-            transfer_weights(source_model=model_dis, target_model=_model_dis)
-            model_gen = _model_gen
-            model_dis = _model_dis
-            model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-            model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-            save_eval_images(random_noise, model_gen, epoch, arguments.out_dir, prefix=f'stage-{current_stage}-')
+                name=f"discriminator_stage_{current_stage}")
             optimizer_gen = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learning_rate,
                 beta_1=arguments.beta1,
                 beta_2=arguments.beta2,
                 epsilon=arguments.adam_epsilon,
-                name='adam_generator',
-            )
+                name='adam_generator')
             optimizer_dis = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learning_rate * arguments.disc_repeats,
                 beta_1=arguments.beta1,
                 beta_2=arguments.beta2,
                 epsilon=arguments.adam_epsilon,
-                name='adam_discriminator',
-            )
+                name='adam_discriminator')
+            # transfer weights from previous stage models to current_stage models
+            transfer_weights(source_model=model_gen, target_model=_model_gen)
+            transfer_weights(source_model=model_dis, target_model=_model_dis)
+            # clear previous stage models, collect with gc
+            del model_gen
+            del model_dis
+            gc.collect()  # note: this only cleans the python runtime not keras/tensorflow backend nor GPU memory
+            model_gen = _model_gen
+            model_dis = _model_dis
+            model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+            model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+            save_eval_images(random_noise, model_gen, epoch, arguments.out_dir, prefix=f'stage-{current_stage}-')
+            # update counters/tqdm postfix
+            arguments.alpha = 0.0
+            steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
+            stage_start_time = time.time()
+            epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
