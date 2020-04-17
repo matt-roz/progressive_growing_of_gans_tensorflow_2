@@ -1,5 +1,5 @@
 import os
-from typing import Union, Sequence, Optional
+from typing import Union, Sequence, Tuple
 import logging
 
 import tensorflow as tf
@@ -166,9 +166,21 @@ def transfer_weights(
                     target_var.assign_sub(delta_value)
 
 
-def he_initializer_scale(shape, gain: float = 2.0):
-    fan_in = np.prod(shape[:-1])
+def he_initializer_scale(kernel_shape, gain: float = 2.0):
+    fan_in = np.prod(kernel_shape[:-1])
     return np.sqrt(gain / fan_in)
+
+
+def he_kernel_initializer(kernel_shape, gain: float = 2.0, use_weight_scaling: bool = True) \
+        -> Tuple[float, tf.initializers.Initializer]:
+    he_scale = he_initializer_scale(kernel_shape=kernel_shape, gain=gain)
+    if use_weight_scaling:
+        op_scale = he_scale
+        kernel_initializer = tf.random_normal_initializer()
+    else:
+        op_scale = 1.0
+        kernel_initializer = tf.random_normal_initializer(0, he_scale)
+    return op_scale, kernel_initializer
 
 
 @tf.function

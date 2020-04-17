@@ -5,30 +5,149 @@ from tensorflow.python.ops import array_ops
 from tensorflow.python.keras import activations
 from tensorflow.python.framework import tensor_shape
 
-from utils import he_initializer_scale
+from utils import he_kernel_initializer
+
+_channel_choices = ['NHWC', 'NCHW', 'channel_last', 'channel_first']
 
 
 class PixelNormalization(tf.keras.layers.Layer):
-    def __init__(self, epsilon: float = 1e-8, data_format: str = 'NHWC', *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        assert isinstance(epsilon, float) and epsilon > 0
-        assert data_format in ['NHWC', 'NCHW']
-        self._epsilon = epsilon
-        self._data_format = data_format
-        self._axis = -1 if self._data_format == 'NHWC' else 1
+    """A Layer implementation of PixelNormalization as described in https://arxiv.org/abs/1710.10196.
+    original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L120
 
-    def call(self, inputs, **kwargs):
-        return inputs * tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=self._axis, keepdims=True) + self._epsilon)
+    Normalizes the feature vector (on channel_axis) in each pixel to unit length. Used in the generator after each Conv.
+
+    Args:
+        epsilon: epsilon for rsqrt to avoid division by zero
+        data_format: specifies the channel dimension
+        *args: passed down arguments to super().__init__()
+        **kwargs: passed down keyword-arguments to super().__init__()
+
+    Attributes:
+        epsilon (float): epsilon for sqrt calculation
+        data_format (str): specifies the channel dimension
+        channel_axis (int): depicts the axis of the channels/features
+
+    Raises:
+        TypeError: if epsilon is not of type float
+        ValueError: if data_format is invalid
+    """
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', *args, **kwargs):
+        if not isinstance(epsilon, float):
+            raise TypeError(f"epsilon must be of type {float} but found {type(epsilon)} instead")
+        if data_format not in _channel_choices:
+            raise ValueError(f"data_format must be one of {_channel_choices} but found {data_format} instead")
+        super().__init__(*args, **kwargs)
+        self.epsilon = epsilon
+        self.data_format = data_format
+        self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channel_last' else 1
+
+    def call(self, inputs, **kwarg):
+        scale = tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=self.channel_axis, keepdims=True) + self.epsilon)
+        return inputs * scale
 
     def compute_output_shape(self, input_shape):
         return input_shape
 
     def get_config(self):
-        return {'epsilon': self._epsilon, 'data_format': self._data_format}
+        base_config = super(PixelNormalization, self).get_config()
+        base_config['epsilon'] = self.epsilon
+        base_config['data_format'] = self.data_format
+        return base_config
+
+
+class StandardDeviationLayer(tf.keras.layers.Layer):
+    """A layer implementation of StandardDeviationLayer as proposed in https://arxiv.org/abs/1710.10196.
+    original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L127
+
+    A layer concatenating batch statistics to the channel_axis of a 4D Tensor. Used in the last block (stage 2) of the
+    discriminator.
+
+    Args:
+        epsilon: epsilon for sqrt calculation
+        data_format: specifies the channel dimension
+        *args: passed down arguments to super().__init__()
+        **kwargs: passed down keyword-arguments to super().__init__()
+
+    Attributes:
+        epsilon (float): epsilon for sqrt calculation
+        data_format (str): specifies the channel dimension
+        channel_axis (int): depicts the axis of the channels/features
+
+    Raises:
+        TypeError: if epsilon is not of type float
+        ValueError: if data_format is invalid
+    """
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', *args, **kwargs):
+        if not isinstance(epsilon, float):
+            raise TypeError(f"epsilon must be of type {float} but found {type(epsilon)} instead")
+        if data_format not in _channel_choices:
+            raise ValueError(f"data_format must be one of {_channel_choices} but found {data_format} instead")
+        super().__init__(*args, **kwargs)
+        self.epsilon = epsilon
+        self.data_format = data_format
+        self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channel_last' else 1
+
+    def call(self, inputs, **kwargs):
+        mean = tf.reduce_mean(inputs, axis=0, keepdims=True)
+        mean_square_diff = tf.reduce_mean(tf.math.square(inputs - mean), axis=0, keepdims=True)
+        stddev = tf.sqrt(mean_square_diff + self.epsilon)
+        mean_stddev = tf.reduce_mean(stddev, keepdims=True)
+        input_shape = tf.shape(inputs)
+        if self.channel_axis == -1:
+            feature_shape = (input_shape[0], input_shape[1], input_shape[2], 1)
+        else:
+            feature_shape = (input_shape[0], 1, input_shape[1], input_shape[2])
+        feature = tf.tile(mean_stddev, feature_shape)
+        return tf.concat([inputs, feature], axis=self.channel_axis)
+
+    def compute_output_shape(self, input_shape):
+        if len(input_shape) != 4:
+            raise ValueError(f"{self.__class__.__name__} requires a rank=4 tensor but received rank={len(input_shape)}")
+        shape = list(input_shape)
+        shape[self.channel_axis] += 1
+        return tuple(shape)
+
+    def get_config(self):
+        base_config = super(StandardDeviationLayer, self).get_config()
+        base_config['epsilon'] = self.epsilon
+        base_config['data_format'] = self.data_format
+        return base_config
 
 
 class CustomDense(tf.keras.layers.Dense):
-    def __init__(self, input_shape, units, gain=2.0,  use_weight_scaling=True, use_bias=True, activation=None, **kwargs):
+    """A wrapper around Dense to allow the weight scaling trick as described in https://arxiv.org/abs/1710.10196.
+    original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L34
+
+    Disallow the arguments 'bias_initializer', 'kernel_initializer' to be used, since the implementation requires bias
+    to be initialized with zeros and kernel with a custom he_scale init. The weight scaling trick applies op_scale
+    to the kernel output during the forward pass:
+
+        output = op_scale * kernel_op(inputs) + bias
+
+    Both add_bias and activation from super() must be delayed after op_scale has been applied to the kernel output. For
+    this reason this implementation deactivates use_bias after super().build() and wraps 'use_bias' as well as
+    'activation' in the call() forward pass after op_scale has been applied to super().call().
+
+    Args:
+        input_shape: shape of input_tensor must be known at layer instantiation since op_scale depends on kernel_shape
+        units: number of units for dense layer
+        gain: gain for he_initializer_scale
+        use_weight_scaling: whether or not to use the weight scale trick
+        use_bias: whether or not to use a bias on kernel output
+        activation: activation on kernel output + bias
+        **kwargs: passed down keyword-arguments to super().__init__()
+
+    Attributes:
+        bias_initializer: initializer for bias
+        kernel_initializer: initializer for kernel
+        gain: gain for he_initializer_scale
+        use_weight_scaling: whether or not to use the weight scale trick
+        op_scale (float): scalar used to scale the output after kernel_op
+        _wrapper_use_bias (bool): wrapper for use_bias
+        _wrapper_activation (Callable): wrapper for activation
+        _argument_input_shape: placeholder for serialization via get_config
+    """
+    def __init__(self, input_shape, units, gain=2.0, use_weight_scaling=True, use_bias=True, activation=None, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
@@ -39,80 +158,105 @@ class CustomDense(tf.keras.layers.Dense):
         self.bias_initializer = tf.zeros_initializer()
         self.gain = gain
         self.use_weight_scaling = use_weight_scaling
-        self.wrapper_use_bias = use_bias
-        self.wrapper_activation = activations.get(activation)
+        self._wrapper_use_bias = use_bias
+        self._wrapper_activation = activations.get(activation)
+        self._argument_input_shape = input_shape
 
-        # compute kernel initializer
+        # compute kernel shape
         input_shape = tensor_shape.TensorShape(input_shape)
         last_dim = tensor_shape.dimension_value(input_shape[-1])
         kernel_shape = (last_dim, self.units)
-        he_scale = he_initializer_scale(shape=kernel_shape, gain=self.gain)
-        if self.use_weight_scaling:
-            self.conv_op_scale = he_scale
-            self.kernel_initializer = tf.random_normal_initializer()
-        else:
-            self.conv_op_scale = 1.0
-            self.kernel_initializer = tf.random_normal_initializer(0, he_scale)
+        self.op_scale, self.kernel_initializer = he_kernel_initializer(kernel_shape, self.gain, self.use_weight_scaling)
 
     def build(self, input_shape):
-        super(CustomDense, self).build(input_shape)
-        self.use_bias = False
+        super(CustomDense, self).build(input_shape)  # instantiates kernel and bias
+        self.use_bias = False                        # wrapper_use_bias determines bias usage
 
     def call(self, inputs):
-        outputs = self.conv_op_scale * super(CustomDense, self).call(inputs)
-
-        if self.wrapper_use_bias:
+        # apply weight scaling trick to kernel output
+        outputs = self.op_scale * super(CustomDense, self).call(inputs)
+        # proceed to add bias and use activation based on wrapped vars
+        if self._wrapper_use_bias:
             outputs = tf.nn.bias_add(outputs, self.bias)
-        if self.wrapper_activation is not None:
-            return self.wrapper_activation(outputs)
+        if self._wrapper_activation is not None:
+            return self._wrapper_activation(outputs)
         return outputs
 
     def get_config(self):
         base_config = super(CustomDense, self).get_config()
-        base_config['input_shape'] = self.input_shape
+        base_config['input_shape'] = self._argument_input_shape
         base_config['gain'] = self.gain
         base_config['use_weight_scaling'] = self.use_weight_scaling
-        base_config['activation'] = activations.serialize(self.wrapper_activation)  # overrides base config
-        base_config['use_bias'] = self.wrapper_use_bias  # overrides base config
-
+        base_config['activation'] = activations.serialize(self._wrapper_activation)  # overrides base config
+        base_config['use_bias'] = self._wrapper_use_bias                             # overrides base config
         return base_config
 
 
 class CustomConv2D(tf.keras.layers.Conv2D):
-    def __init__(self, input_shape, filters, kernel_size, gain=2.0, use_weight_scaling=True, use_bias=True, activation=None, **kwargs):
+    """A wrapper around Conv2D to allow the weight scaling trick as described in https://arxiv.org/abs/1710.10196.
+    original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L44
+
+    Disallow the arguments 'bias_initializer', 'kernel_initializer' to be used, since the implementation requires bias
+    to be initialized with zeros and kernel with a custom he_scale init. The weight scaling trick applies op_scale
+    to the kernel output during the forward pass:
+
+        output = op_scale * kernel_op(inputs) + bias
+
+    Both add_bias and activation from super() must be delayed after op_scale has been applied to the kernel output. For
+    this reason this implementation deactivates use_bias after super().build() and wraps 'use_bias' as well as
+    'activation' in the call() forward pass after op_scale has been applied to super().call().
+
+    Args:
+        input_shape: shape of input_tensor must be known at layer instantiation since op_scale depends on kernel_shape
+        filters: the dimensionality of the output space
+        kernel_size: specifying the height and width of the 2D convolution window
+        gain: gain for he_initializer_scale
+        use_weight_scaling: whether or not to use the weight scale trick
+        use_bias: whether or not to use a bias on kernel output
+        activation: activation on kernel output + bias
+        **kwargs: passed down keyword-arguments to super().__init__()
+
+    Attributes:
+        bias_initializer: initializer for bias
+        kernel_initializer: initializer for kernel
+        gain: gain for he_initializer_scale
+        use_weight_scaling: whether or not to use the weight scale trick
+        op_scale (float): scalar used to scale the output after kernel_op
+        _wrapper_use_bias (bool): wrapper for use_bias
+        _wrapper_activation (Callable): wrapper for activation
+        _argument_input_shape: placeholder for serialization via get_config
+    """
+    def __init__(self, input_shape, filters, kernel_size, gain=2.0, use_weight_scaling=True, use_bias=True,
+                 activation=None, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
         if 'kernel_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores kernel_initializer={kwargs['kernel_initializer']}")
             del kwargs['kernel_initializer']
-        super(CustomConv2D, self).__init__(filters=filters, use_bias=use_bias, kernel_size=kernel_size, **kwargs)
+        super(CustomConv2D, self).__init__(filters=filters, kernel_size=kernel_size, use_bias=use_bias, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
         self.gain = gain
         self.use_weight_scaling = use_weight_scaling
-        self.wrapper_activation = activations.get(activation)
-        self.wrapper_use_bias = use_bias
+        self._wrapper_activation = activations.get(activation)
+        self._wrapper_use_bias = use_bias
+        self._argument_input_shape = input_shape
 
         # compute kernel initializer
         input_shape = tensor_shape.TensorShape(input_shape)
         input_channel = self._get_input_channel(input_shape)
         kernel_shape = self.kernel_size + (input_channel, self.filters)
-        he_scale = he_initializer_scale(shape=kernel_shape, gain=self.gain)
-        if self.use_weight_scaling:
-            self.conv_op_scale = he_scale
-            self.kernel_initializer = tf.random_normal_initializer()
-        else:
-            self.conv_op_scale = 1.0
-            self.kernel_initializer = tf.random_normal_initializer(0, he_scale)
+        self.op_scale, self.kernel_initializer = he_kernel_initializer(kernel_shape, self.gain, self.use_weight_scaling)
 
     def build(self, input_shape):
-        super(CustomConv2D, self).build(input_shape)
-        self.use_bias = False
+        super(CustomConv2D, self).build(input_shape)  # instantiates kernel and bias
+        self.use_bias = False                         # wrapper_use_bias determines bias usage
 
     def call(self, inputs, **kwargs):
-        outputs = self.conv_op_scale * super(CustomConv2D, self).call(inputs)
-
-        if self.wrapper_use_bias:
+        # apply weight scaling trick to kernel output
+        outputs = self.op_scale * super(CustomConv2D, self).call(inputs)
+        # proceed to add bias and use activation based on wrapped vars
+        if self._wrapper_use_bias:
             if self.data_format == 'channels_first':
                 if self.rank == 1:
                     # nn.bias_add does not accept a 1D input tensor.
@@ -123,46 +267,15 @@ class CustomConv2D(tf.keras.layers.Conv2D):
             else:
                 outputs = tf.nn.bias_add(outputs, self.bias, data_format='NHWC')
 
-        if self.wrapper_activation is not None:
-            return self.wrapper_activation(outputs)
+        if self._wrapper_activation is not None:
+            return self._wrapper_activation(outputs)
         return outputs
 
     def get_config(self):
         base_config = super(CustomConv2D, self).get_config()
-        base_config['input_shape'] = self.input_shape
+        base_config['input_shape'] = self._argument_input_shape
         base_config['gain'] = self.gain
         base_config['use_weight_scaling'] = self.use_weight_scaling
-        base_config['activation'] = activations.serialize(self.wrapper_activation)  # overrides base config
-        base_config['use_bias'] = self.wrapper_use_bias  # overrides base config
+        base_config['activation'] = activations.serialize(self._wrapper_activation)  # overrides base config
+        base_config['use_bias'] = self._wrapper_use_bias                             # overrides base config
         return base_config
-
-
-class StandardDeviationLayer(tf.keras.layers.Layer):
-    def __init__(self, epsilon: float = 1e-8, data_format: str = 'NHWC', *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        assert isinstance(epsilon, float) and epsilon > 0
-        assert data_format in ['NHWC', 'NCHW']
-        self._epsilon = epsilon
-        self._data_format = data_format
-        self._channel_axis = -1 if self._data_format == 'NHWC' else 1
-        if self._data_format == 'NCHW':
-            raise NotImplementedError()  #TODO(M. Rozanski): channel implementation
-
-    def call(self, inputs, **kwargs):
-        mean = tf.reduce_mean(inputs, axis=0, keepdims=True)
-        mean_square_diff = tf.reduce_mean(tf.math.square(inputs - mean), axis=0, keepdims=True)
-        mean_square_diff += self._epsilon
-        stddev = tf.sqrt(mean_square_diff)
-        mean_stddev = tf.reduce_mean(stddev, keepdims=True)
-        input_shape = tf.shape(inputs)
-        outputs = tf.tile(mean_stddev, (input_shape[0], input_shape[1], input_shape[2], 1))
-        return tf.concat([inputs, outputs], axis=self._channel_axis)
-
-    def compute_output_shape(self, input_shape):
-        assert len(input_shape) == 4
-        shape = list(input_shape)
-        shape[self._channel_axis] += 1
-        return tuple(shape)
-
-    def get_config(self):
-        return {'epsilon': self._epsilon, 'data_format': self._data_format}
