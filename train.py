@@ -1,53 +1,15 @@
 import os
 import time
 import logging
-from typing import Union, Optional, Tuple, Callable
+from typing import Tuple
 
 import tensorflow as tf
-import tensorflow_datasets as tfds
 from tqdm import tqdm
 
+from data import get_dataset_pipeline, celeb_a_hq_process_func
 from model import generator_paper, discriminator_paper
+from losses import discriminator_loss, generator_loss
 from utils import save_eval_images, transfer_weights
-
-
-def get_dataset_pipeline(
-        name: str,
-        split: str,
-        data_dir: Union[str, os.PathLike],
-        as_supervised: bool = False,
-        batch_size: Optional[int] = None,
-        buffer_size: Optional[int] = None,
-        process_func: Optional[Callable] = None,
-        map_parallel_calls: Optional[int] = None,
-        interleave_parallel_calls: Optional[int] = None,
-        prefetch_parallel_calls: Optional[int] = None,
-        epochs: Optional[int] = None,
-        dataset_caching: bool = True,
-        dataset_cache_file: Union[str, os.PathLike] = "") -> Tuple[tf.data.Dataset, int]:
-    # load dataset from tensorflow_datasets, apply logical chain of transformations
-    dataset, info = tfds.load(name=name, split=split, data_dir=data_dir, with_info=True, as_supervised=as_supervised)
-    if process_func:
-        dataset = dataset.map(map_func=process_func, num_parallel_calls=map_parallel_calls)
-    if dataset_caching:
-        dataset = dataset.cache(filename=dataset_cache_file)
-    if buffer_size:
-        dataset = dataset.shuffle(buffer_size=buffer_size)
-    if batch_size:
-        dataset = dataset.batch(batch_size=batch_size)
-    if epochs:
-        dataset = dataset.repeat(epochs)
-    if buffer_size:
-        dataset = dataset.prefetch(buffer_size=prefetch_parallel_calls)
-    logging.info(f"Successfully loaded dataset={name} with split={split} from data_dir={data_dir}")
-    return dataset, info.splits[split].num_examples
-
-
-@tf.function
-def celeb_a_hq_process_func(entry, as_supervised=False):
-    image = entry['image'] if not as_supervised else entry[0]
-    image = (tf.cast(image, tf.float32) - 127.5) / 127.5
-    return image
 
 
 def train(arguments):
@@ -96,23 +58,6 @@ def train(arguments):
         # random noise for image eval
         random_noise = tf.random.normal(shape=(16, arguments.noise_dim), seed=1000)
 
-    # local tf.function definitions for fast graphmode execution
-    @tf.function
-    def discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
-        # wasserstein loss
-        wasserstein_loss = tf.reduce_mean(fake_output - real_output)
-
-        # epsilon drift penalty
-        if arguments.use_epsilon_drift:
-            epsilon_loss = tf.reduce_mean(tf.square(real_output)) * arguments.wgan_epsilon
-        else:
-            epsilon_loss = 0.0
-        return wasserstein_loss, epsilon_loss
-
-    @tf.function
-    def generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
-        return -tf.reduce_mean(fake_output)
-
     def train_step(image_batch: tf.Tensor, local_batch_size: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
         # generate noise for projecting fake images
         noise = tf.random.normal([local_batch_size, arguments.noise_dim])
@@ -139,7 +84,7 @@ def train(arguments):
 
             # calculate losses
             _gen_loss = generator_loss(fake_image_guesses)
-            _disc_ws_loss, _disc_eps_loss = discriminator_loss(real_image_guesses, fake_image_guesses)
+            _disc_ws_loss, _disc_eps_loss = discriminator_loss(real_image_guesses, fake_image_guesses, arguments.wgan_epsilon, arguments.use_epsilon_drift)
             _disc_stacked_loss = tf.stack((_disc_ws_loss, gradient_loss, _disc_eps_loss))
             _disc_loss = tf.reduce_sum(_disc_stacked_loss)
 
