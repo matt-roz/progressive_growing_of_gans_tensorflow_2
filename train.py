@@ -226,7 +226,7 @@ def train(arguments):
 
         # check stage increase
         if (epoch + 1) % arguments.epochs_per_stage == 0 and current_stage < arguments.stop_stage:
-            stage_duration = stage_start_time - time.time()
+            stage_duration = time.time() - stage_start_time
             logging.info(f"Successfully completed stage={current_stage} in {stage_duration:.3f}s at epoch={epoch}.")
             # increment stage, get dataset pipeline for new images, instantiate next stage models
             current_stage += 1
