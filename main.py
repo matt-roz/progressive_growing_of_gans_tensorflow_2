@@ -152,6 +152,8 @@ if __name__ == '__main__':
     log_parser.add_argument('--no-log', dest="logging", default=True, action="store_false", help="deactivates logging")
     log_parser.add_argument('--log-level', dest='log_level', type=str, default=log_level_choices[0],
                             choices=log_level_choices, help="depicts logging level (default: '%(default)s')")
+    log_parser.add_argument('--tf-log-level', dest='tf_log_level', type=str, default=log_level_choices[2],
+                            choices=log_level_choices, help="depicts TensorFlow logging level (default: '%(default)s')")
     log_parser.add_argument('--log-dir', dest="log_dir", type=str, default=output_dir,
                             help="depicts root directory for logging (default: '%(default)s')")
     log_parser.add_argument('--log-filename', dest='log_file', type=str, default=log_file,
@@ -235,7 +237,12 @@ if __name__ == '__main__':
     if args.is_chief and args.logging:
         create_directory(args.log_dir)
         logging.basicConfig(filename=log_file_path, format=args.log_format, level=args.log_level, datefmt=args.log_date_format)
-        tf.get_logger().setLevel('ERROR')
+        # ToDo: move this in utils and write a better logging function
+        tf_log = tf.get_logger()
+        file_hdlr = logging.FileHandler(filename=log_file_path, mode='w')
+        file_hdlr.setFormatter(logging.Formatter(fmt=args.log_format, datefmt=args.log_date_format))
+        tf_log.addHandler(hdlr=file_hdlr)
+        tf_log.setLevel(args.tf_log_level)
         logging.info(f"{host}: successfully set up logging")
         logging.info(f"{host}: TensorFlow Eager Execution is {'disabled' if args.neager else 'enabled'}.")
         logging.info(f"{host}: XLA Compiler is {'disabled' if not args.XLA else 'enabled'}.")
