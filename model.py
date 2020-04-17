@@ -3,9 +3,9 @@ from typing import Optional, Dict, Sequence, Tuple
 import numpy as np
 import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, LeakyReLU, Dense, Reshape, UpSampling2D, Flatten, BatchNormalization, \
-    Conv2DTranspose
+    Conv2DTranspose, AveragePooling2D
 
-from layers import PixelNormalization, DownSampling2D, StandardDeviationLayer, CustomConv2D, CustomDense
+from layers import PixelNormalization, StandardDeviationLayer, CustomConv2D, CustomDense
 
 
 def generator_example(
@@ -121,7 +121,7 @@ def discriminator_example(
         features = block(value=features, stage=current_stage)
 
         # downsample image features from current block and image from previous block
-        image = DownSampling2D(name=f'block_{current_stage}/downsample_to_{2**(current_stage-1)}x{2**(current_stage-1)}')(image)
+        image = AveragePooling2D(name=f'block_{current_stage}/avgpool_to_{2**(current_stage-1)}x{2**(current_stage-1)}')(image)
 
         # alpha smooth features from current block into features from previous block image
         if use_alpha_smoothing and current_stage == stop_stage:
@@ -268,7 +268,7 @@ def discriminator_paper(
         features = block(value=features, stage=current_stage)
 
         # downsample image features from current block and image from previous block
-        down = DownSampling2D(name=f'block_{current_stage}/downsample_to_{2**(current_stage-1)}x{2**(current_stage-1)}')
+        down = AveragePooling2D(name=f'block_{current_stage}/avgpool_to_{2**(current_stage-1)}x{2**(current_stage-1)}')
         features = down(features)
         image = down(image)
 
