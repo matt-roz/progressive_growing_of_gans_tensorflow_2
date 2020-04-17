@@ -1,6 +1,8 @@
 import logging
 
 import tensorflow as tf
+from tensorflow.python.ops import array_ops
+from tensorflow.python.keras import activations
 from tensorflow.python.framework import tensor_shape
 
 from utils import he_initializer_scale
@@ -53,17 +55,19 @@ class PixelNormalization(tf.keras.layers.Layer):
 
 
 class CustomDense(tf.keras.layers.Dense):
-    def __init__(self, input_shape, units, gain=2.0, use_weight_scaling=True, **kwargs):
+    def __init__(self, input_shape, units, gain=2.0,  use_weight_scaling=True, use_bias=True, activation=None, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
         if 'kernel_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores kernel_initializer={kwargs['kernel_initializer']}")
             del kwargs['kernel_initializer']
-        super(CustomDense, self).__init__(units=units, **kwargs)
+        super(CustomDense, self).__init__(units=units, use_bias=use_bias, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
         self.gain = gain
         self.use_weight_scaling = use_weight_scaling
+        self.wrapper_use_bias = use_bias
+        self.wrapper_activation = activations.get(activation)
 
         # compute kernel initializer
         input_shape = tensor_shape.TensorShape(input_shape)
@@ -79,28 +83,42 @@ class CustomDense(tf.keras.layers.Dense):
 
     def build(self, input_shape):
         super(CustomDense, self).build(input_shape)
-        self.kernel.assign(self.conv_op_scale * self.kernel)
+        self.use_bias = False
+
+    def call(self, inputs):
+        outputs = self.conv_op_scale * super(CustomDense, self).call(inputs)
+
+        if self.wrapper_use_bias:
+            outputs = tf.nn.bias_add(outputs, self.bias)
+        if self.wrapper_activation is not None:
+            return self.wrapper_activation(outputs)
+        return outputs
 
     def get_config(self):
         base_config = super(CustomDense, self).get_config()
         base_config['input_shape'] = self.input_shape
         base_config['gain'] = self.gain
         base_config['use_weight_scaling'] = self.use_weight_scaling
+        base_config['activation'] = activations.serialize(self.wrapper_activation)  # overrides base config
+        base_config['use_bias'] = self.wrapper_use_bias  # overrides base config
+
         return base_config
 
 
 class CustomConv2D(tf.keras.layers.Conv2D):
-    def __init__(self, input_shape, filters, kernel_size, gain=2.0, use_weight_scaling=True, **kwargs):
+    def __init__(self, input_shape, filters, kernel_size, gain=2.0, use_weight_scaling=True, use_bias=True, activation=None, **kwargs):
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
         if 'kernel_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores kernel_initializer={kwargs['kernel_initializer']}")
             del kwargs['kernel_initializer']
-        super(CustomConv2D, self).__init__(filters=filters, kernel_size=kernel_size, **kwargs)
+        super(CustomConv2D, self).__init__(filters=filters, use_bias=use_bias, kernel_size=kernel_size, **kwargs)
         self.bias_initializer = tf.zeros_initializer()
         self.gain = gain
         self.use_weight_scaling = use_weight_scaling
+        self.wrapper_activation = activations.get(activation)
+        self.wrapper_use_bias = use_bias
 
         # compute kernel initializer
         input_shape = tensor_shape.TensorShape(input_shape)
@@ -116,13 +134,33 @@ class CustomConv2D(tf.keras.layers.Conv2D):
 
     def build(self, input_shape):
         super(CustomConv2D, self).build(input_shape)
-        self.kernel.assign(self.conv_op_scale * self.kernel)
+        self.use_bias = False
+
+    def call(self, inputs, **kwargs):
+        outputs = self.conv_op_scale * super(CustomConv2D, self).call(inputs)
+
+        if self.wrapper_use_bias:
+            if self.data_format == 'channels_first':
+                if self.rank == 1:
+                    # nn.bias_add does not accept a 1D input tensor.
+                    bias = array_ops.reshape(self.bias, (1, self.filters, 1))
+                    outputs += bias
+                else:
+                    outputs = tf.nn.bias_add(outputs, self.bias, data_format='NCHW')
+            else:
+                outputs = tf.nn.bias_add(outputs, self.bias, data_format='NHWC')
+
+        if self.wrapper_activation is not None:
+            return self.wrapper_activation(outputs)
+        return outputs
 
     def get_config(self):
         base_config = super(CustomConv2D, self).get_config()
         base_config['input_shape'] = self.input_shape
         base_config['gain'] = self.gain
         base_config['use_weight_scaling'] = self.use_weight_scaling
+        base_config['activation'] = activations.serialize(self.wrapper_activation)  # overrides base config
+        base_config['use_bias'] = self.wrapper_use_bias  # overrides base config
         return base_config
 
 
@@ -135,7 +173,7 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         self._data_format = data_format
         self._channel_axis = -1 if self._data_format == 'NHWC' else 1
         if self._data_format == 'NCHW':
-            raise NotImplementedError()  # M. Rozanski: TODO
+            raise NotImplementedError()  #TODO(M. Rozanski): channel implementation
 
     def call(self, inputs, **kwargs):
         mean = tf.reduce_mean(inputs, axis=0, keepdims=True)
