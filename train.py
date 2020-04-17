@@ -107,8 +107,8 @@ def train(arguments):
             batch_size = tf.shape(image_batch)[0]
             batch_gen_loss, batch_dis_loss = train_step(image_batch=image_batch, local_batch_size=batch_size)
 
-            # smooth weights into final generator
-            transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.999, log_info=False)
+            # smooth available weights from current_stage model_gen into final generator
+            transfer_weights(source_model=model_gen, target_model=final_gen, beta=0.999)
 
             # compute moving average of loss metrics
             _size = tf.cast(batch_size, tf.float32)
@@ -173,7 +173,7 @@ def train(arguments):
         use_alpha_smoothing=arguments.use_alpha_smoothing,
         name=f"discriminator_stage_{current_stage}"
     )
-    transfer_weights(source_model=model_gen, target_model=final_gen, prefix='', beta=0.0, log_info=True)
+    transfer_weights(source_model=model_gen, target_model=final_gen)
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
@@ -259,8 +259,8 @@ def train(arguments):
                 use_alpha_smoothing=arguments.use_alpha_smoothing,
                 name=f"discriminator_stage_{current_stage}"
             )
-            transfer_weights(source_model=model_gen, target_model=_model_gen, prefix='', log_info=True)
-            transfer_weights(source_model=model_dis, target_model=_model_dis, prefix='', log_info=True)
+            transfer_weights(source_model=model_gen, target_model=_model_gen)
+            transfer_weights(source_model=model_dis, target_model=_model_dis)
             model_gen = _model_gen
             model_dis = _model_dis
             model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])

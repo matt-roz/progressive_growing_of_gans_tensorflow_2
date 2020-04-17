@@ -7,7 +7,24 @@ import numpy as np
 from PIL import Image
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# utils for general purpose operating system handling
+# ----------------------------------------------------------------------------------------------------------------------
+
 def get_environment_variable(identifier: str) -> str:
+    """Returns the environment variable for identifier.
+
+    Args:
+        identifier: string depicting to environment variable
+
+    Returns:
+        string stored in environment variable for identifier
+
+    Raises:
+        TypeError: if identifier is not of type string
+        ValueError: if identifier is empty string
+        EnvironmentError: if environment variable is not set
+    """
     if not isinstance(identifier, str):
         raise TypeError(f"identifier must be of type str but found type(identifier)={type(identifier)} instead.")
     if identifier == "":
@@ -39,26 +56,47 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
         os.makedirs(directory, *args, **kwargs)
 
 
-def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: int, output_dir, prefix: str = "",
-                     alpha: float = 0.0, stage: int = 0) -> None:
+# ----------------------------------------------------------------------------------------------------------------------
+# utils for general purpose images/tensorflow functions
+# ----------------------------------------------------------------------------------------------------------------------
+
+def save_eval_images(
+        random_noise: tf.Tensor,
+        generator: tf.keras.Model,
+        epoch: int,
+        output_dir: Union[str, bytes, os.PathLike],
+        prefix: str = "",
+        alpha: float = 0.0,
+        stage: int = 0,
+        data_format: str = "channel_last") -> None:
+    """TODO(M. Rozanski): refactor args such that multiple output model is easier understandable here + add docu"""
     assert isinstance(stage, int) and (stage == 0 or stage >= 2)
-    # ToDo M.Rozanski: adapt flag for data_format 'NCHW' (right now 'NHWC' only)
+    assert data_format in ['NCHW', 'NHWC', 'channel_first', 'channel_last']
+    noise_shape = tf.shape(random_noise)
+    channel_axis = -1 if data_format == 'NHWC' or data_format == 'channel_last' else 1
+
     # inference on generator to get images
-    _shape = tf.shape(random_noise)
     if not stage:
         fixed_predictions = generator([random_noise, alpha], training=False).numpy()
-        rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False).numpy()
+        rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False).numpy()
     else:
         alpha = 1.0
         fixed_predictions = generator([random_noise, alpha], training=False)[stage - 2].numpy()
-        rand_predictions = generator([tf.random.normal(shape=_shape), alpha], training=False)[stage - 2].numpy()
-    num_images, width, height, channels = fixed_predictions.shape
+        rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False)[stage - 2].numpy()
 
     # from tf.float32 [-1, 1] to np.uint8 [0, 255]
     fixed_predictions = 255 * ((fixed_predictions + 1.0) / 2.0)
     rand_predictions = 255 * ((rand_predictions + 1.0) / 2.0)
     fixed_predictions.astype(dtype=np.uint8, copy=False)
     rand_predictions.astype(dtype=np.uint8, copy=False)
+
+    # get output dims, swap axes in case of channel_first
+    if channel_axis == -1:
+        num_images, height, width, channels = fixed_predictions.shape
+    else:
+        num_images, channels, height, width = fixed_predictions.shape
+        fixed_predictions = fixed_predictions.swapaxes(1, -1)
+        rand_predictions = rand_predictions.swapaxes(1, -1)
 
     # output container for image, first column are fixed_random_seed pictures, second are not seeded-random
     predictions = np.empty(shape=[2 * height, num_images * width,  channels], dtype=np.uint8)
@@ -81,38 +119,51 @@ def save_eval_images(random_noise: tf.Tensor, generator: tf.keras.Model, epoch: 
     del predictions
 
 
-def transfer_weights(source_model: tf.keras.Model, target_model: tf.keras.Model, prefix: str = 'block',
-                     beta: float = 0.0, log_info: bool = False):
-    transferred_name_list = []
-    missing_target_list = []
+def transfer_weights(
+        source_model: tf.keras.Model,
+        target_model: tf.keras.Model,
+        is_cloned: bool = False,
+        layer_name_prefix: str = '',
+        beta: float = 0.0) -> None:
+    """Linear beta-interpolation of weights from source_model to target_model.
 
-    # iterate layers and transfer to target_layer, if existent
-    for layer in source_model.layers:
-        source_vars = layer.variables
-        if layer.name.startswith(prefix) and source_vars:
-            try:
-                target_layer = target_model.get_layer(name=layer.name)
-            except ValueError:
-                missing_target_list.append(layer.name)
-                continue
-            # assign source to target for each var in layer, discount var by beta-momentum if var.trainable
-            for source_var, target_var in zip(source_vars, target_layer.variables):
-                assert source_var.shape == target_var.shape
-                assert source_var.dtype == target_var.dtype
-                # _beta = beta if source_var.trainable else 0.0
-                # new_value = source_var + (target_var - source_var) * _beta
-                delta_value = (1 - beta) * (target_var - source_var)
-                target_var.assign_sub(delta_value)
-                transferred_name_list.append(f"{source_var.name} -> {target_var.name}")
+    Can be used to maintain a shadow exponential moving average of source_model. Only weights of layers with the same
+    name in both models and both starting with 'layer_name_prefix' are transferred.
 
-    # log and clear
-    if log_info:
-        logging.info(f"Transferred variables with beta={beta} from {source_model.name} to {target_model.name}: "
-                     f"{transferred_name_list}. The following layers were not found in {target_model.name}: "
-                     f"{missing_target_list}")
-    del transferred_name_list
-    del missing_target_list
-    # ToDo M. Rozanski: implement missing source_layer.name logic ?
+    If target_model and source_model are clones and share the exact same topology a significantly faster implementation
+    is used. If is_cloned is False, this function assumes source_model is a topological sub-network of target_model; in
+    that case missing layers in either target_model or source_model are silently ignored.
+
+    Args:
+        source_model: the source to transfer weights from
+        target_model: the target to transfer weights to
+        is_cloned: whether or not source and target are exact clones (significantly speeds up computation)
+        layer_name_prefix: only layers starting with layer_name_prefix are transferred
+        beta: value for linear interpolation; must be within [0.0, 1.0)
+
+    Raises:
+        ValueError: if beta exceeds interval [0.0, 1.0)
+    """
+    if not 0.0 <= beta < 1.0:
+        raise ValueError(f'beta must be within [0.0, 1.0) but received beta={beta} instead')
+
+    if is_cloned:  # same exact layer order and topology in both models
+        for source_layer, target_layer in zip(source_model.layers, target_model.layers):
+            if source_layer.name == target_layer.name and source_layer.name.startswith(layer_name_prefix):
+                for source_var, target_var in zip(source_layer.variables, target_layer.variables):
+                    delta_value = (1 - beta) * (target_var - source_var)
+                    target_var.assign_sub(delta_value)
+    else:  # iterate source_model.layers and transfer to target_layer, if target_layer exists
+        for source_layer in source_model.layers:
+            source_vars = source_layer.variables
+            if source_layer.name.startswith(layer_name_prefix) and source_vars:
+                try:
+                    target_layer = target_model.get_layer(name=source_layer.name)
+                except ValueError:
+                    continue
+                for source_var, target_var in zip(source_vars, target_layer.variables):
+                    delta_value = (1 - beta) * (target_var - source_var)
+                    target_var.assign_sub(delta_value)
 
 
 def he_initializer_scale(shape, gain: float = 2.0):
