@@ -353,4 +353,4 @@ class WeightScalingWrapper(tf.keras.layers.Wrapper):
 
     @property
     def name(self):
-        return f"{self.layer.name}/WeightScaled_{self.layer.__class__.__name__}"
+        return f"{self.layer.name}/WeightScaled{self.layer.__class__.__name__}"

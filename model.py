@@ -152,7 +152,7 @@ def generator_paper(
         use_alpha_smoothing: bool = True,
         return_all_outputs: bool = False,
         leaky_alpha: float = 0.2,
-        normalize_latents: bool = False,
+        normalize_latents: bool = True,
         num_features: Optional[Dict] = None,
         name: str = 'pgan_celeb_a_hq_generator',
         **kwargs) -> tf.keras.Model:
@@ -165,34 +165,29 @@ def generator_paper(
     outputs = []
 
     # define building blocks
-    def to_rgb(value: tf.Tensor, stage: int):
+    def _conv(filters, kernel_size, gain=2.0, **_kwargs):
+        _layer = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', use_bias=use_bias, **_kwargs)
         if use_weight_scaling:
-            c1 = Conv2D(filters=3, kernel_size=(1, 1), padding='same', use_bias=True, name=f'block_{stage}/toRGB')
-            _x = WeightScalingWrapper(layer=c1, gain=1.0)(value)
-        else:
-            _x = CustomConv2D(value.shape[1:], 3, (1, 1), 1.0, use_weight_scaling, use_bias=use_bias, padding='same',
-                              name=f'block_{stage}/toRGB')(value)
+            _layer = WeightScalingWrapper(layer=_layer, gain=gain)
+        return _layer
+
+    def _dense(units, gain=2.0, **_kwargs):
+        _layer = Dense(units=units, use_bias=use_bias, **_kwargs)
+        if use_weight_scaling:
+            _layer = WeightScalingWrapper(layer=_layer, gain=gain)
+        return _layer
+
+    def to_rgb(value: tf.Tensor, stage: int):
+        _x = _conv(filters=3, kernel_size=(1, 1), gain=1.0, name=f'block_{stage}/toRGB')(value)
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        if use_weight_scaling:
-            c1 = Conv2D(filters=num_features[stage], kernel_size=(3, 3), padding='same', use_bias=use_bias, name=f'block_{stage}/conv2d_1')
-            c2 = Conv2D(filters=num_features[stage], kernel_size=(3, 3), padding='same', use_bias=use_bias, name=f'block_{stage}/conv2d_2')
-            _x = WeightScalingWrapper(layer=c1, gain=2.0)(value)
-            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
-            _x = WeightScalingWrapper(layer=c2, gain=2.0)(_x)
-            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
-            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
-        else:
-            _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                              padding='same', name=f'block_{stage}/conv2d_1')(value)
-            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
-            _x = CustomConv2D(_x.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                              padding='same', name=f'block_{stage}/conv2d_2')(value)
-            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
-            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
+        _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_1')(value)
+        _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
+        _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
+        _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_2')(_x)
+        _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
+        _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
         return _x
 
     # noise input
@@ -203,13 +198,11 @@ def generator_paper(
     # project from noise to minimum features, apply block 2 to features
     _target_shape = (4, 4, num_features[2])
     _units = int(np.prod(_target_shape))
-    features = CustomDense(x.shape[1:], _units, 0.125, use_weight_scaling, use_bias=use_bias,
-                           name='block_2/dense_projector')(x)
+    features = _dense(units=_units, gain=0.125, name='block_2/dense_projector')(x)
     features = Reshape(_target_shape, name='block_2/feature_reshape')(features)
     features = LeakyReLU(leaky_alpha, name='block_2/activation_1')(features)
     features = PixelNormalization(name='block_2/pixel_norm_1')(features)
-    features = CustomConv2D(features.shape[1:], num_features[2], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                            padding='same', name=f'block_2/conv2d_1')(features)
+    features = _conv(filters=num_features[2], kernel_size=(3, 3), gain=2.0, name=f'block_2/conv2d_1')(features)
     features = LeakyReLU(leaky_alpha, name='block_2/activation_2')(features)
     features = PixelNormalization(name='block_2/pixel_norm_2')(features)
     image_out = to_rgb(value=features, stage=2)
@@ -257,18 +250,28 @@ def discriminator_paper(
     inputs = tf.keras.layers.Input(shape=input_shape, name='image_input', dtype=tf.float32)
     alpha = tf.keras.layers.Input(shape=tuple(), batch_size=1, name='alpha_input', dtype=tf.float32)
 
+    # define building blocks
+    def _conv(filters, kernel_size, gain=2.0, **_kwargs):
+        _layer = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', use_bias=use_bias, **_kwargs)
+        if use_weight_scaling:
+            _layer = WeightScalingWrapper(layer=_layer, gain=gain)
+        return _layer
+
+    def _dense(units, gain=2.0, **_kwargs):
+        _layer = Dense(units=units, use_bias=use_bias, **_kwargs)
+        if use_weight_scaling:
+            _layer = WeightScalingWrapper(layer=_layer, gain=gain)
+        return _layer
+
     def from_rgb(value: tf.Tensor, stage: int):
-        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                          padding='same',  name=f'block_{stage}/fromRGB')(value)
+        _x = _conv(filters=num_features[stage], kernel_size=(1, 1), gain=2.0, name=f'block_{stage}/fromRGB')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_rgb')(_x)
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                          padding='same', name=f'block_{stage}/conv2d_1')(value)
+        _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0,  name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = CustomConv2D(value.shape[1:], num_features[stage - 1], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                          padding='same', name=f'block_{stage}/conv2d_2')(value)
+        _x = _conv(filters=num_features[stage-1], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_2')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
         return _x
 
@@ -293,13 +296,12 @@ def discriminator_paper(
 
     # final block 2
     x = StandardDeviationLayer(name=f'block_2/stddev_layer')(features)
-    x = CustomConv2D(x.shape[1:], num_features[2], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias, padding='same',
-                     name=f'block_2/conv2d_1')(x)
+    x = _conv(filters=num_features[2], kernel_size=(3, 3), gain=2.0, name=f'block_2/conv2d_1')(x)
     x = LeakyReLU(leaky_alpha, name=f'block_2/activation_1')(x)
     _units = x.shape[-1]
     x = Flatten(name='block_2/flatten')(x)
-    x = CustomDense(x.shape[1:], _units, 2.0, use_weight_scaling, use_bias=use_bias, name='block_2/dense_1')(x)
+    x = _dense(units=_units, gain=2.0, name='block_2/dense_1')(x)
     x = LeakyReLU(leaky_alpha, name=f'block_2/activation_2')(x)
-    x = CustomDense(x.shape[1:], 1, 1.0, use_weight_scaling, use_bias=use_bias, name='block_2/dense_2')(x)
+    x = _dense(units=1, gain=1.0, name='block_2/dense_2')(x)
 
     return tf.keras.models.Model(inputs=[inputs, alpha], outputs=x, name=name)
