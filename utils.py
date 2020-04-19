@@ -176,10 +176,10 @@ def he_kernel_initializer(kernel_shape, gain: float = 2.0, use_weight_scaling: b
     he_scale = he_initializer_scale(kernel_shape=kernel_shape, gain=gain)
     if use_weight_scaling:
         op_scale = he_scale
-        kernel_initializer = tf.random_normal_initializer()
+        kernel_initializer = tf.keras.initializers.RandomNormal()
     else:
         op_scale = 1.0
-        kernel_initializer = tf.random_normal_initializer(0, he_scale)
+        kernel_initializer = tf.keras.initializers.RandomNormal(0, he_scale)
     return op_scale, kernel_initializer
 
 

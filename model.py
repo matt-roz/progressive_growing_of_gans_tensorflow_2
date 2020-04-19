@@ -5,7 +5,7 @@ import tensorflow as tf
 from tensorflow.keras.layers import Conv2D, LeakyReLU, Dense, Reshape, UpSampling2D, Flatten, BatchNormalization, \
     Conv2DTranspose, AveragePooling2D
 
-from layers import PixelNormalization, StandardDeviationLayer, CustomConv2D, CustomDense
+from layers import PixelNormalization, StandardDeviationLayer, CustomConv2D, CustomDense, WeightScalingWrapper
 
 
 def generator_example(
@@ -166,19 +166,33 @@ def generator_paper(
 
     # define building blocks
     def to_rgb(value: tf.Tensor, stage: int):
-        _x = CustomConv2D(value.shape[1:], 3, (1, 1), 1.0, use_weight_scaling, use_bias=use_bias, padding='same',
-                          name=f'block_{stage}/toRGB')(value)
+        if use_weight_scaling:
+            c1 = Conv2D(filters=3, kernel_size=(1, 1), padding='same', use_bias=True, name=f'block_{stage}/toRGB')
+            _x = WeightScalingWrapper(layer=c1, gain=1.0)(value)
+        else:
+            _x = CustomConv2D(value.shape[1:], 3, (1, 1), 1.0, use_weight_scaling, use_bias=use_bias, padding='same',
+                              name=f'block_{stage}/toRGB')(value)
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                          padding='same', name=f'block_{stage}/conv2d_1')(value)
-        _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
-        _x = CustomConv2D(_x.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
-                          padding='same', name=f'block_{stage}/conv2d_2')(value)
-        _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
-        _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
+        if use_weight_scaling:
+            c1 = Conv2D(filters=num_features[stage], kernel_size=(3, 3), padding='same', use_bias=use_bias, name=f'block_{stage}/conv2d_1')
+            c2 = Conv2D(filters=num_features[stage], kernel_size=(3, 3), padding='same', use_bias=use_bias, name=f'block_{stage}/conv2d_2')
+            _x = WeightScalingWrapper(layer=c1, gain=2.0)(value)
+            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
+            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
+            _x = WeightScalingWrapper(layer=c2, gain=2.0)(_x)
+            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
+            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
+        else:
+            _x = CustomConv2D(value.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
+                              padding='same', name=f'block_{stage}/conv2d_1')(value)
+            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
+            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
+            _x = CustomConv2D(_x.shape[1:], num_features[stage], (3, 3), 2.0, use_weight_scaling, use_bias=use_bias,
+                              padding='same', name=f'block_{stage}/conv2d_2')(value)
+            _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
+            _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
         return _x
 
     # noise input
