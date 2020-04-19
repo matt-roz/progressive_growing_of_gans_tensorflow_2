@@ -70,11 +70,10 @@ def train(arguments):
             if arguments.use_gradient_penalty:
                 mixing_factors = tf.random.uniform([local_batch_size, 1, 1, 1], 0.0, 1.0)
                 mixed_images = image_batch + (fake_images - image_batch) * mixing_factors
-                with discriminator_tape.stop_recording():
-                    with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
-                        mixed_tape.watch(mixed_images)
-                        mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
-                    gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
+                with tf.GradientTape(watch_accessed_variables=False) as mixed_tape:
+                    mixed_tape.watch(mixed_images)
+                    mixed_output = model_dis([mixed_images, arguments.alpha], training=True)
+                gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
                 gradient_mixed_norm = tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3]))
                 gradient_penalty = tf.reduce_mean(tf.square(gradient_mixed_norm - arguments.wgan_target))
                 gradient_loss = gradient_penalty * (arguments.wgan_lambda / (arguments.wgan_target ** 2))
