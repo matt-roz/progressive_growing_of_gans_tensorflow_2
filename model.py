@@ -166,13 +166,14 @@ def generator_paper(
 
     # define building blocks
     def _conv(filters, kernel_size, gain=2.0, **_kwargs):
-        _layer = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', use_bias=use_bias, **_kwargs)
+        _layer = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', use_bias=use_bias,
+                        kernel_initializer='random_normal', **_kwargs)
         if use_weight_scaling:
             _layer = WeightScalingWrapper(layer=_layer, gain=gain)
         return _layer
 
     def _dense(units, gain=2.0, **_kwargs):
-        _layer = Dense(units=units, use_bias=use_bias, **_kwargs)
+        _layer = Dense(units=units, use_bias=use_bias, kernel_initializer='random_normal', **_kwargs)
         if use_weight_scaling:
             _layer = WeightScalingWrapper(layer=_layer, gain=gain)
         return _layer
@@ -252,13 +253,14 @@ def discriminator_paper(
 
     # define building blocks
     def _conv(filters, kernel_size, gain=2.0, **_kwargs):
-        _layer = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', use_bias=use_bias, **_kwargs)
+        _layer = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', use_bias=use_bias,
+                        kernel_initializer='random_normal', **_kwargs)
         if use_weight_scaling:
             _layer = WeightScalingWrapper(layer=_layer, gain=gain)
         return _layer
 
     def _dense(units, gain=2.0, **_kwargs):
-        _layer = Dense(units=units, use_bias=use_bias, **_kwargs)
+        _layer = Dense(units=units, use_bias=use_bias, kernel_initializer='random_normal', **_kwargs)
         if use_weight_scaling:
             _layer = WeightScalingWrapper(layer=_layer, gain=gain)
         return _layer
