@@ -3,6 +3,7 @@ import gc
 import time
 import logging
 from typing import Tuple
+from datetime import timedelta
 
 import tensorflow as tf
 from tqdm import tqdm
@@ -177,6 +178,7 @@ def train(arguments):
     model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
+    logging.info(f"Starting to train Stage {current_stage}")
 
     # counters, timings, etc.
     total_image_count = 0
@@ -220,14 +222,15 @@ def train(arguments):
             final_gen.save(filepath=fin_file)
 
         # update log files and tqdm status message
-        status_message = f"sec={epoch_duration:.3f}, gen_loss={gen_loss:.3f}, dis_loss={tf.reduce_sum(dis_loss):.3f}"
+        _str_duration = str(timedelta(seconds=epoch_duration))
+        status_message = f"duration={_str_duration}, gen_loss={gen_loss:.3f}, dis_loss={tf.reduce_sum(dis_loss):.3f}"
         logging.info(f"Finished epoch-{epoch+1:04d} with {status_message}")
         epochs.set_postfix_str(status_message)
 
         # check stage increase
         if (epoch + 1) % arguments.epochs_per_stage == 0 and current_stage < arguments.stop_stage:
-            stage_duration = time.time() - stage_start_time
-            logging.info(f"Successfully completed stage={current_stage} in {stage_duration:.3f}s after epoch={epoch+1}")
+            stage_duration = str(timedelta(seconds=time.time() - stage_start_time))
+            logging.info(f"Successfully completed stage={current_stage} in {stage_duration}s after epoch={epoch+1}")
             # increment stage, get dataset pipeline for new images, instantiate next stage models
             current_stage += 1
             train_dataset, num_examples = get_dataset_pipeline(
@@ -286,3 +289,4 @@ def train(arguments):
             steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
             stage_start_time = time.time()
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
+            logging.info(f"Starting to train Stage {current_stage}")
