@@ -153,9 +153,33 @@ def generator_paper(
         return_all_outputs: bool = False,
         leaky_alpha: float = 0.2,
         normalize_latents: bool = True,
-        num_features: Optional[Dict] = None,
+        num_features: Optional[Dict[int, int]] = None,
         name: str = 'pgan_celeb_a_hq_generator',
         **kwargs) -> tf.keras.Model:
+    """Functional API implementation of generator for Progressive-GAN as described in https://arxiv.org/abs/1710.10196.
+    original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L144
+
+    This generator is built and invoked for each consecutive stage (up to 9 times). Trainable variables from a previous
+    stage are transferred to a newly created instance.
+
+    Args:
+        input_shape: optional input_shape without batch_dimension. Defaults to (noise_dim,)
+        noise_dim: dimensionality of noise vector to project generated images from
+        stop_stage: the stage of the generator; output will be (2**stop_stage, 2**stop_stage, 3)
+        use_bias: whether or not layers should use biases or not
+        use_weight_scaling: whether or not the weight scaling trick should be applied
+        use_alpha_smoothing: whether or not layer new stages should be linearly interpolated into the current model
+        return_all_outputs: whether or not all image outputs (including previous stages) should be connected to the
+            output. By default only the current stage image (stop_stage) is returned.
+        leaky_alpha: alpha for LeakyReLU configuration
+        normalize_latents: whether or not the noise vector should be pixel_normalized
+        num_features: mapping of stage to features; all Convolutions will output num_features[stage] at stage
+        name: name of keras model
+        **kwargs: unused
+
+    Returns:
+        tf.keras.Model built via functional API depicting the generator at stage 'stop_stage'
+    """
     if num_features is None:
         num_features = {0: 512, 1: 512, 2: 512, 3: 512, 4: 512, 5: 512, 6: 256, 7: 128, 8: 64, 9: 32, 10: 16}
     if input_shape is None:
