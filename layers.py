@@ -325,10 +325,10 @@ class WeightScalingWrapper(tf.keras.layers.Wrapper):
         self.built = True
 
     def call(self, inputs, **kwargs):
-        # apply weight scaling trick to kernel output
+        # apply weight scaling trick to kernel output (bias and activation circumvented)
         outputs = self.weight_scale * self.layer.call(inputs)
 
-        # proceed to add bias and use activation based on wrapped vars
+        # proceed to add bias and use activation based on wrapped configuration
         if self.use_bias:
             if self.has_data_format:
                 if self.layer.data_format == 'channels_first':
