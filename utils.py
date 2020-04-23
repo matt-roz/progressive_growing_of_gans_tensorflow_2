@@ -105,11 +105,7 @@ def save_eval_images(
         predictions[height:, index * width:(index + 1) * width, :] = rand_predictions[index]
     image = Image.fromarray(predictions)
 
-    # file name
-    if not stage:
-        name = f"{prefix}epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
-    else:
-        name = f"{prefix}final_gen_epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
+    name = f"{prefix}{generator.name}_epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
     image.save(os.path.join(output_dir, name))
 
     # clean up

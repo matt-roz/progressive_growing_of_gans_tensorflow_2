@@ -8,6 +8,7 @@ from datetime import timedelta
 import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
+from tensorflow.keras.utils import plot_model
 
 from data import get_dataset_pipeline, celeb_a_hq_process_func
 from model import generator_paper, discriminator_paper
@@ -46,7 +47,7 @@ def train(arguments):
             use_noise_normalization=arguments.use_noise_normalization,
             leaky_alpha=arguments.leaky_alpha,
             return_all_outputs=True,
-            name='final_generator')
+            name='generator_final')
         model_gen = final_gen
         model_dis = discriminator_paper(
             stop_stage=arguments.stop_stage,
@@ -55,10 +56,12 @@ def train(arguments):
             use_fused_scaling=arguments.use_fused_scaling,
             use_alpha_smoothing=arguments.use_alpha_smoothing,
             leaky_alpha=arguments.leaky_alpha,
-            name='final_discriminator')
+            name='discriminator_final')
         logging.info(f"Successfully instantiated the following final models {model_dis.name} and {model_gen.name}")
-        model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-        model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+        model_gen.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+        model_dis.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+        plot_model(final_gen, os.path.join(arguments.out_dir, f"net_{final_gen.name}.png"), True, False, dpi=178)
+        plot_model(model_dis, os.path.join(arguments.out_dir, f"net_{model_dis.name}.png"), True, False, dpi=178)
 
         # random noise for image eval
         random_noise = tf.random.normal(shape=(16, arguments.noise_dim), seed=1000)
@@ -187,8 +190,10 @@ def train(arguments):
         name=f"discriminator_stage_{current_stage}")
     transfer_weights(source_model=model_gen, target_model=final_gen, beta=0.0)  # force same initialization
     logging.info(f"Successfully instantiated {model_dis.name} and {model_gen.name} for stage={current_stage}")
-    model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-    model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
+    model_gen.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+    model_dis.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+    plot_model(model_gen, os.path.join(arguments.out_dir, f"net_{model_gen.name}.png"), True, False, dpi=178)
+    plot_model(model_dis, os.path.join(arguments.out_dir, f"net_{model_dis.name}.png"), True, False, dpi=178)
     epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
     logging.info(f"Starting to train Stage {current_stage}")
 
@@ -236,9 +241,9 @@ def train(arguments):
         # save model checkpoints
         if arguments.save and arguments.checkpoint_freq and (epoch + 1) % arguments.checkpoint_freq == 0:
             str_shape = 'x'.join([str(x) for x in image_shape])
-            gen_file = os.path.join(arguments.out_dir, f"{model_gen.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
-            dis_file = os.path.join(arguments.out_dir, f"{model_dis.name}-epoch-{epoch+1:04d}-shape-{str_shape}.h5")
-            fin_file = os.path.join(arguments.out_dir, f"{final_gen.name}-epoch-{epoch+1:04d}.h5")
+            gen_file = os.path.join(arguments.out_dir, f"cp_{model_gen.name}_epoch-{epoch+1:04d}_shape-{str_shape}.h5")
+            dis_file = os.path.join(arguments.out_dir, f"cp_{model_dis.name}_epoch-{epoch+1:04d}_shape-{str_shape}.h5")
+            fin_file = os.path.join(arguments.out_dir, f"cp_{final_gen.name}_epoch-{epoch+1:04d}.h5")
             model_gen.save(filepath=gen_file)
             model_dis.save(filepath=dis_file)
             final_gen.save(filepath=fin_file)
@@ -287,7 +292,6 @@ def train(arguments):
                 use_alpha_smoothing=arguments.use_alpha_smoothing,
                 leaky_alpha=arguments.leaky_alpha,
                 name=f"discriminator_stage_{current_stage}")
-            """
             optimizer_gen = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learning_rate,
                 beta_1=arguments.beta1,
@@ -300,7 +304,6 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.adam_epsilon,
                 name='adam_discriminator')
-            """
             # transfer weights from previous stage models to current_stage models
             transfer_weights(source_model=model_gen, target_model=_model_gen)
             transfer_weights(source_model=model_dis, target_model=_model_dis)
@@ -310,9 +313,11 @@ def train(arguments):
             gc.collect()  # note: this only cleans the python runtime not keras/tensorflow backend nor GPU memory
             model_gen = _model_gen
             model_dis = _model_dis
-            model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-            model_dis.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
-            save_eval_images(random_noise, model_gen, epoch, arguments.out_dir, prefix=f'stage-{current_stage}-')
+            model_gen.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+            model_dis.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+            plot_model(model_gen, os.path.join(arguments.out_dir, f"net_{model_gen.name}.png"), True, False, dpi=178)
+            plot_model(model_dis, os.path.join(arguments.out_dir, f"net_{model_dis.name}.png"), True, False, dpi=178)
+            save_eval_images(random_noise, model_gen, epoch, arguments.out_dir, prefix=f'stage-{current_stage}_')
             # update counters/tqdm postfix
             arguments.alpha = 0.0
             steps_per_epoch = int(num_examples // batch_sizes[current_stage]) + 1
