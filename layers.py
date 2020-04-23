@@ -293,8 +293,8 @@ class WeightScalingWrapper(tf.keras.layers.Wrapper):
         super(WeightScalingWrapper, self).__init__(layer=layer, name=name, **kwargs)
         self.gain = gain
 
-        # get info from layer
-        self.has_bias = hasattr(self.layer, 'bias') and hasattr(self.layer, 'use_bias')
+        # get info from layer that is to be wrapped
+        self.has_bias = hasattr(self.layer, 'bias') or hasattr(self.layer, 'use_bias')
         self.use_bias = self.has_bias and self.layer.use_bias
         self.has_activation = hasattr(self.layer, 'activation')
         self.activation = None
@@ -318,7 +318,7 @@ class WeightScalingWrapper(tf.keras.layers.Wrapper):
         if self.has_bias:
             self.layer.use_bias = False
 
-        # redirect activation output
+        # redirect activation output (wrapper takes care of it)
         if self.has_activation:
             self.activation = self.layer.activation
             self.layer.activation = None
@@ -351,3 +351,9 @@ class WeightScalingWrapper(tf.keras.layers.Wrapper):
     def compute_output_shape(self, input_shape):
         return self.layer.compute_output_shape(input_shape=input_shape)
 
+    def get_config(self):
+        base_config = super(WeightScalingWrapper, self).get_config()
+        base_config['gain'] = self.gain
+        base_config['layer']['config']['activation'] = activations.serialize(self.activation)  # overrides base config
+        base_config['layer']['config']['use_bias'] = self.use_bias                             # overrides base config
+        return base_config
