@@ -66,8 +66,10 @@ def get_dataset_pipeline(
 @tf.function
 def celeb_a_hq_process_func(
         entry: Union[Dict[str, tf.Tensor], Sequence[tf.Tensor]],
-        as_supervised: bool = False) -> tf.Tensor:
-    """Transforms celeb_a_hq image from tf.uint8 with range [0, 255] to tf.float32 with range [-1, 1].
+        as_supervised: bool = False,
+        mirror_augment: bool = True) -> tf.Tensor:
+    """Transforms celeb_a_hq image from tf.uint8 with range [0, 255] to tf.float32 with range [-1, 1]. Randomly mirrors
+    images vertically.
 
     Expects entry to be a sequence of tf.Tensors, if as_supervised is True; else a dictionary mapping with its keys
     according to the info provided with the dataset.
@@ -75,10 +77,13 @@ def celeb_a_hq_process_func(
     Args:
         entry: a single entry in a tf.data.Dataset pipeline
         as_supervised: whether or not the entry is a sequence (supervised) or a mapping
+        mirror_augment: whether or not there is a 50% chance for images to be vertically flipped
 
     Returns:
-        A normalized image as a tf.Tensor.
+        A normalized and potentially vertically flipped image as a tf.Tensor.
     """
     image = entry['image'] if not as_supervised else entry[0]
     image = (tf.cast(image, tf.float32) - 127.5) / 127.5
+    if mirror_augment:
+        image = tf.image.random_flip_left_right(image)
     return image
