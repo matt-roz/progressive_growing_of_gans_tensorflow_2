@@ -169,6 +169,7 @@ def generator_paper(
         stop_stage: the stage of the generator; output will be (2**stop_stage, 2**stop_stage, 3)
         use_bias: whether or not layers should use biases or not
         use_weight_scaling: whether or not the weight scaling trick should be applied
+        use_fused_scaling: whether or not the Conv2DTranspose should be used for UpSampling2D images
         use_alpha_smoothing: whether or not layer new stages should be linearly interpolated into the current model
         return_all_outputs: whether or not all image outputs (including previous stages) should be connected to the
             output. By default only the current stage image (stop_stage) is returned.
@@ -216,7 +217,7 @@ def generator_paper(
 
     def block(value: tf.Tensor, stage: int):
         if use_fused_scaling:
-            _x = _deconv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_1')(value)
+            _x = _deconv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/deconv2d_1')(value)
         else:
             _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
