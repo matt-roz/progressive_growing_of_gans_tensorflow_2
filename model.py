@@ -149,10 +149,11 @@ def generator_paper(
         stop_stage: int = 10,
         use_bias: bool = True,
         use_weight_scaling: bool = True,
+        use_fused_scaling: bool = True,
         use_alpha_smoothing: bool = True,
         return_all_outputs: bool = False,
         leaky_alpha: float = 0.2,
-        normalize_latents: bool = True,
+        use_noise_normalization: bool = True,
         num_features: Optional[Dict[int, int]] = None,
         name: str = 'pgan_celeb_a_hq_generator',
         **kwargs) -> tf.keras.Model:
@@ -172,7 +173,7 @@ def generator_paper(
         return_all_outputs: whether or not all image outputs (including previous stages) should be connected to the
             output. By default only the current stage image (stop_stage) is returned.
         leaky_alpha: alpha for LeakyReLU configuration
-        normalize_latents: whether or not the noise vector should be pixel_normalized
+        use_noise_normalization: whether or not the noise vector should be pixel_normalized
         num_features: mapping of stage to features; all Convolutions will output num_features[stage] at stage
         name: name of keras model
         **kwargs: unused
@@ -196,6 +197,13 @@ def generator_paper(
             _layer = WeightScalingWrapper(layer=_layer, gain=gain)
         return _layer
 
+    def _deconv(filters, kernel_size, gain=2.0, **_kwargs):
+        _layer = Conv2DTranspose(filters=filters, kernel_size=kernel_size, strides=(2, 2), padding='same',
+                                 use_bias=use_bias, kernel_initializer='random_normal', **_kwargs)
+        if use_weight_scaling:
+            _layer = WeightScalingWrapper(layer=_layer, gain=gain)
+        return _layer
+
     def _dense(units, gain=2.0, **_kwargs):
         _layer = Dense(units=units, use_bias=use_bias, kernel_initializer='random_normal', **_kwargs)
         if use_weight_scaling:
@@ -207,7 +215,10 @@ def generator_paper(
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_1')(value)
+        if use_fused_scaling:
+            _x = _deconv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_1')(value)
+        else:
+            _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
         _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
         _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_2')(_x)
@@ -217,7 +228,7 @@ def generator_paper(
 
     # noise input
     x = inputs
-    if normalize_latents:
+    if use_noise_normalization:
         x = PixelNormalization(name='block_s/pixel_norm_noise')(x)
 
     # project from noise to minimum features, apply block 2 to features
@@ -237,7 +248,8 @@ def generator_paper(
     for current_stage in range(3, stop_stage + 1):
         # upscale current features and toRGB image from previous layer (image_out)
         up = UpSampling2D(name=f'block_{current_stage}/upsample_to_{2**current_stage}x{2**current_stage}')
-        features = up(features)
+        if not use_fused_scaling:
+            features = up(features)
         image_out = up(image_out)
 
         # apply block on upsampled features with new stage, transform current features to image
@@ -263,6 +275,7 @@ def discriminator_paper(
         leaky_alpha: float = 0.2,
         use_bias: bool = True,
         use_weight_scaling: bool = True,
+        use_fused_scaling: bool = True,
         use_alpha_smoothing: bool = True,
         num_features: Optional[Dict] = None,
         name: str = 'pgan_celeb_a_hq_discriminator',
@@ -276,8 +289,8 @@ def discriminator_paper(
     alpha = tf.keras.layers.Input(shape=tuple(), batch_size=1, name='alpha_input', dtype=tf.float32)
 
     # define building blocks
-    def _conv(filters, kernel_size, gain=2.0, **_kwargs):
-        _layer = Conv2D(filters=filters, kernel_size=kernel_size, padding='same', use_bias=use_bias,
+    def _conv(filters, kernel_size, strides=(1, 1), gain=2.0, **_kwargs):
+        _layer = Conv2D(filters=filters, kernel_size=kernel_size, strides=strides, padding='same', use_bias=use_bias,
                         kernel_initializer='random_normal', **_kwargs)
         if use_weight_scaling:
             _layer = WeightScalingWrapper(layer=_layer, gain=gain)
@@ -295,9 +308,10 @@ def discriminator_paper(
         return _x
 
     def block(value: tf.Tensor, stage: int):
-        _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0,  name=f'block_{stage}/conv2d_1')(value)
+        strides = (2, 2) if use_fused_scaling else (1, 1)
+        _x = _conv(filters=num_features[stage], kernel_size=(3, 3), strides=strides, gain=2.0,  name=f'block_{stage}/conv2d_1')(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = _conv(filters=num_features[stage-1], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_2')(value)
+        _x = _conv(filters=num_features[stage-1], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_2')(_x)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
         return _x
 
@@ -312,7 +326,8 @@ def discriminator_paper(
 
         # downsample image features from current block and image from previous block
         down = AveragePooling2D(name=f'block_{current_stage}/avgpool_to_{2**(current_stage-1)}x{2**(current_stage-1)}')
-        features = down(features)
+        if not use_fused_scaling:
+            features = down(features)
         image = down(image)
 
         # alpha smooth features from current block into features from previous block image

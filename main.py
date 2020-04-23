@@ -74,8 +74,12 @@ if __name__ == '__main__':
                               help="deactivates use of weight scaling")
     model_parser.add_argument('--no-alpha-smoothing', dest='use_alpha_smoothing', action='store_false', default=True,
                               help="deactivates last block alpha smoothing")
+    model_parser.add_argument('--no-noise-normalization', dest='use_noise_normalization', action='store_false',
+                              default=True, help="deactivates pixel_normalization on generator's noise input")
     model_parser.add_argument('--no-stages', dest='use_stages', action='store_false', default=True,
                               help="deactivates progressive training (only trains final stage)")
+    model_parser.add_argument('--no-fused-scaling', dest='use_fused_scaling', action='store_false', default=True,
+                              help="deactivates fused up- and downscaling with stride in ConvLayers")
     model_parser.add_argument('--no-epsilon-drift', dest='use_epsilon_drift', action='store_false', default=True,
                               help="deactivates epsilon drift for discriminator loss (will be set to 0.0)")
     model_parser.add_argument('--no-gradient-penalty', dest='use_gradient_penalty', action='store_false', default=True,

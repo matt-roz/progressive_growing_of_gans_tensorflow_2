@@ -40,7 +40,10 @@ def train(arguments):
             stop_stage=arguments.stop_stage,
             use_bias=arguments.use_bias,
             use_weight_scaling=arguments.use_weight_scaling,
+            use_fused_scaling=arguments.use_fused_scaling,
             use_alpha_smoothing=arguments.use_alpha_smoothing,
+            use_noise_normalization=arguments.use_noise_normalization,
+            leaky_alpha=arguments.leaky_alpha,
             return_all_outputs=True,
             name='final_generator')
         model_gen = final_gen
@@ -48,7 +51,9 @@ def train(arguments):
             stop_stage=arguments.stop_stage,
             use_bias=arguments.use_bias,
             use_weight_scaling=arguments.use_weight_scaling,
+            use_fused_scaling=arguments.use_fused_scaling,
             use_alpha_smoothing=arguments.use_alpha_smoothing,
+            leaky_alpha=arguments.leaky_alpha,
             name='final_discriminator')
         logging.info(f"Successfully instantiated the following final models {model_dis.name} and {model_gen.name}")
         model_gen.summary(print_fn=logging.info, line_length=170, positions=[.33, .55, .67, 1.])
@@ -144,14 +149,15 @@ def train(arguments):
     # train loop
     current_stage = 2 if arguments.use_stages else arguments.stop_stage
     epochs = tqdm(iterable=range(arguments.epochs), desc='Progressive-GAN', unit='epoch')
-    batch_sizes = {0: 512, 1: 512, 2: 512, 3: 384, 4: 384, 5: 128, 6: 64, 7: 24, 8: 14, 9: 6, 10: 4}
+    batch_sizes = {0: 16, 1: 16, 2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3}
+    buffer_sizes = {0: 5000, 1: 5000, 2: 5000, 3: 5000, 4: 2500, 5: 1250, 6: 500, 7: 400, 8: 300, 9: 250, 10: 200}
 
     train_dataset, num_examples = get_dataset_pipeline(
         name=f"celeb_a_hq/{2**current_stage}",
         split=arguments.split,
         data_dir=arguments.data_dir,
         batch_size=batch_sizes[current_stage],
-        buffer_size=arguments.buffer_size,
+        buffer_size=buffer_sizes[current_stage],
         process_func=celeb_a_hq_process_func,
         map_parallel_calls=arguments.map_calls,
         interleave_parallel_calls=arguments.interleave_calls,
@@ -164,14 +170,19 @@ def train(arguments):
         stop_stage=current_stage,
         use_bias=arguments.use_bias,
         use_weight_scaling=arguments.use_weight_scaling,
+        use_fused_scaling=arguments.use_fused_scaling,
         use_alpha_smoothing=arguments.use_alpha_smoothing,
+        use_noise_normalization=arguments.use_noise_normalization,
+        leaky_alpha=arguments.leaky_alpha,
         name=f"generator_stage_{current_stage}")
     model_dis = discriminator_paper(
         input_shape=image_shape,
         stop_stage=current_stage,
         use_bias=arguments.use_bias,
         use_weight_scaling=arguments.use_weight_scaling,
+        use_fused_scaling=arguments.use_fused_scaling,
         use_alpha_smoothing=arguments.use_alpha_smoothing,
+        leaky_alpha=arguments.leaky_alpha,
         name=f"discriminator_stage_{current_stage}")
     transfer_weights(source_model=model_gen, target_model=final_gen, beta=0.0)  # force same initialization
     logging.info(f"Successfully instantiated {model_dis.name} and {model_gen.name} for stage={current_stage}")
@@ -238,7 +249,7 @@ def train(arguments):
                 split=arguments.split,
                 data_dir=arguments.data_dir,
                 batch_size=batch_sizes[current_stage],
-                buffer_size=arguments.buffer_size,
+                buffer_size=buffer_sizes[current_stage],
                 process_func=celeb_a_hq_process_func,
                 map_parallel_calls=arguments.map_calls,
                 interleave_parallel_calls=arguments.interleave_calls,
@@ -251,14 +262,19 @@ def train(arguments):
                 stop_stage=current_stage,
                 use_bias=arguments.use_bias,
                 use_weight_scaling=arguments.use_weight_scaling,
+                use_fused_scaling=arguments.use_fused_scaling,
                 use_alpha_smoothing=arguments.use_alpha_smoothing,
+                use_noise_normalization=arguments.use_noise_normalization,
+                leaky_alpha=arguments.leaky_alpha,
                 name=f"generator_stage_{current_stage}")
             _model_dis = discriminator_paper(
                 input_shape=image_shape,
                 stop_stage=current_stage,
                 use_bias=arguments.use_bias,
                 use_weight_scaling=arguments.use_weight_scaling,
+                use_fused_scaling=arguments.use_fused_scaling,
                 use_alpha_smoothing=arguments.use_alpha_smoothing,
+                leaky_alpha=arguments.leaky_alpha,
                 name=f"discriminator_stage_{current_stage}")
             optimizer_gen = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learning_rate,
