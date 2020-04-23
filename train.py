@@ -5,6 +5,7 @@ import logging
 from typing import Tuple
 from datetime import timedelta
 
+import numpy as np
 import tensorflow as tf
 from tqdm import tqdm
 
@@ -206,16 +207,26 @@ def train(arguments):
         # TensorBoard logging
         if arguments.logging and arguments.log_freq:
             batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
+            disc_gradient_penalty = dis_loss[1] * (arguments.wgan_target ** 2) / arguments.wgan_lambda
+            disc_gradient_mixed_norm = np.sqrt(disc_gradient_penalty + 1e-8) + arguments.wgan_target
             tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
             tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
+            tf.summary.scalar(name="train_speed/seconds_per_kimages", data=1000*epoch_duration/image_count, step=epoch)
             tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
             tf.summary.scalar(name="train_speed/total_image_count", data=total_image_count, step=epoch)
             tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
             tf.summary.scalar(name="losses/epoch/discriminator", data=tf.reduce_sum(dis_loss), step=epoch)
-            tf.summary.scalar(name="losses/epoch/discriminator_wgan", data=dis_loss[0], step=epoch)
-            tf.summary.scalar(name="losses/epoch/discriminator_gp", data=dis_loss[1], step=epoch)
-            tf.summary.scalar(name="losses/epoch/discriminator_eps", data=dis_loss[2], step=epoch)
+            tf.summary.scalar(name="losses/epoch/wasserstein_disc", data=dis_loss[0], step=epoch)
+            tf.summary.scalar(name="losses/epoch/gradient_penalty_disc", data=dis_loss[1], step=epoch)
+            tf.summary.scalar(name="losses/epoch/mixed_norms_disc", data=disc_gradient_mixed_norm, step=epoch)
+            tf.summary.scalar(name="losses/epoch/epsilon_penalty_disc", data=dis_loss[2], step=epoch)
+            tf.summary.scalar(name="model/epoch/current_stage", data=current_stage, step=epoch)
             tf.summary.scalar(name="model/epoch/alpha", data=arguments.alpha, step=epoch)
+            tf.summary.scalar(name="model/epoch/batch_size", data=batch_sizes[current_stage], step=epoch)
+            tf.summary.scalar(name="model/epoch/buffer_size", data=buffer_sizes[current_stage], step=epoch)
+            tf.summary.scalar(name="model/epoch/steps_per_epoch", data=steps_per_epoch, step=epoch)
+            tf.summary.scalar(name="optimizers/epoch/discriminator_learning_rate", data=optimizer_dis.lr, step=epoch)
+            tf.summary.scalar(name="optimizers/epoch/generator_learning_rate", data=optimizer_gen.lr, step=epoch)
 
         # save eval images
         if arguments.evaluate and arguments.eval_freq and (epoch + 1) % arguments.eval_freq == 0:
@@ -276,6 +287,7 @@ def train(arguments):
                 use_alpha_smoothing=arguments.use_alpha_smoothing,
                 leaky_alpha=arguments.leaky_alpha,
                 name=f"discriminator_stage_{current_stage}")
+            """
             optimizer_gen = tf.keras.optimizers.Adam(
                 learning_rate=arguments.learning_rate,
                 beta_1=arguments.beta1,
@@ -288,6 +300,7 @@ def train(arguments):
                 beta_2=arguments.beta2,
                 epsilon=arguments.adam_epsilon,
                 name='adam_discriminator')
+            """
             # transfer weights from previous stage models to current_stage models
             transfer_weights(source_model=model_gen, target_model=_model_gen)
             transfer_weights(source_model=model_dis, target_model=_model_dis)
