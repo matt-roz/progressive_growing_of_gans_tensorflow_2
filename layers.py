@@ -1,11 +1,12 @@
 import logging
+import warnings
 
 import tensorflow as tf
 from tensorflow.python.ops import array_ops
 from tensorflow.python.keras import activations
 from tensorflow.python.framework import tensor_shape
 
-from utils import he_kernel_initializer
+from utils import he_kernel_initializer, he_initializer_scale
 
 _channel_choices = ['NHWC', 'NCHW', 'channel_last', 'channel_first']
 
@@ -114,6 +115,118 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         return base_config
 
 
+class WeightScalingWrapper(tf.keras.layers.Wrapper):
+    """A Layer-Wrapper to allow the weight scaling trick as described in https://arxiv.org/abs/1710.10196.
+    original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L22
+
+    Logs warnings if 'bias_initializer' and 'kernel_initializer' are not of appropriate types, since the reference
+    implementation requires bias to be initialized with zeros and kernel with random_normal. The weight scaling trick
+    applies a scalar 'weight_scale' to the kernel output during the forward pass:
+
+        output = weight_scale * layer_kernel_op(inputs) + layer_bias
+
+    Both add_bias and activation from layer must be delayed after weight_scale has been applied to the kernel output.
+    For this reason this implementation deactivates layer.use_bias after layer.build() and wraps 'use_bias' as well as
+    'activation' in the call() forward pass after weight_scale has been applied to layer.call().
+
+    Args:
+        layer: layer to be wrapped and weight_scaled at runtime
+        gain: gain for he_initializer_scale
+        **kwargs: passed down keyword-arguments to super().__init__()
+
+    Attributes:
+        gain: gain for he_initializer_scale
+        has_bias: whether or not wrapped layer has attribute 'bias' or 'use_bias'
+        use_bias: wrapped 'use_bias' from layer (False if non-existent)
+        has_activation: whether or not wrapped layer has attribute 'activation'
+        activation: wrapped 'activation' from layer (None if non-existent)
+        has_data_format:  whether or not wrapped layer has attribute 'data_format'
+        weight_scale: float scalar to weight_scale wrapped layer with
+
+    Raises:
+        ValueError: if layer is not an instance of tf.keras.layers.Layer
+    """
+    def __init__(self, layer, gain, **kwargs):
+        if not isinstance(layer, tf.keras.layers.Layer):
+            raise ValueError(f"wrapped layer must be type {tf.keras.layers.Layer} but received {type(layer)} instead")
+        name = kwargs.pop('name', f"{layer.name}/WeightScaled{layer.__class__.__name__}")
+        super(WeightScalingWrapper, self).__init__(layer=layer, name=name, **kwargs)
+        self.gain = gain
+
+        # get info from layer that is to be wrapped
+        self.has_bias = hasattr(self.layer, 'bias') or hasattr(self.layer, 'use_bias')
+        self.use_bias = self.has_bias and self.layer.use_bias
+        self.has_activation = hasattr(self.layer, 'activation')
+        self.activation = None
+        self.has_data_format = hasattr(self.layer, 'data_format')
+        self.weight_scale = tf.Variable(0.0, False, dtype=tf.float32, name=f'{self.layer.name}/weight_scale')
+
+        # check if layer has correct initializers set up - log warnings
+        if self.use_bias and not isinstance(self.layer.bias_initializer, tf.keras.initializers.Zeros):
+            logging.warning(f"bias_initializer of wrapped layer should be instance of {tf.keras.initializers.Zeros} "
+                            f"but found {type(self.layer.bias_initializer)} instead.")
+        if not isinstance(self.layer.kernel_initializer, tf.keras.initializers.RandomNormal):
+            logging.warning(f"kernel_initializer of wrapped layer should be instance of "
+                            f"{tf.keras.initializers.RandomNormal} but found {type(self.layer.kernel_initializer)} "
+                            f"instead.")
+
+    def build(self, input_shape=None):
+        if not self.layer.built:
+            self.layer.build(input_shape=input_shape)
+
+        weight_scale = he_initializer_scale(kernel_shape=self.layer.kernel.shape, gain=self.gain)
+        self.weight_scale.assign(weight_scale)
+
+        # deactivate layer bias since wrapper takes care of it
+        if self.has_bias:
+            self.layer.use_bias = False
+
+        # redirect activation output (wrapper takes care of it)
+        if self.has_activation:
+            self.activation = self.layer.activation
+            self.layer.activation = None
+        self.built = True
+
+    def call(self, inputs, **kwargs):
+        # apply weight scaling trick to kernel output (bias and activation circumvented)
+        outputs = self.weight_scale * self.layer.call(inputs)
+
+        # proceed to add bias and use activation based on wrapped configuration
+        if self.use_bias:
+            if self.has_data_format:
+                if self.layer.data_format == 'channels_first':
+                    if self.layer.rank == 1:
+                        # nn.bias_add does not accept a 1D input tensor.
+                        bias = array_ops.reshape(self.layer.bias, (1, self.layer.filters, 1))
+                        outputs += bias
+                    else:
+                        outputs = tf.nn.bias_add(outputs, self.layer.bias, data_format='NCHW')
+                else:
+                    outputs = tf.nn.bias_add(outputs, self.layer.bias, data_format='NHWC')
+            else:
+                outputs = tf.nn.bias_add(outputs, self.layer.bias)
+
+        # wrapped activation
+        if self.activation is not None:
+            outputs = self.activation(outputs)
+        return outputs
+
+    def compute_output_shape(self, input_shape):
+        return self.layer.compute_output_shape(input_shape=input_shape)
+
+    def get_config(self):
+        base_config = super(WeightScalingWrapper, self).get_config()
+        base_config['gain'] = self.gain
+        base_config['layer']['config']['activation'] = activations.serialize(self.activation)  # overrides base config
+        base_config['layer']['config']['use_bias'] = self.use_bias                             # overrides base config
+        return base_config
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# deprecated layers (kept for backwards compatibility to trained and serialized h5 models)
+# ----------------------------------------------------------------------------------------------------------------------
+
+
 class CustomDense(tf.keras.layers.Dense):
     """A wrapper around Dense to allow the weight scaling trick as described in https://arxiv.org/abs/1710.10196.
     original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L34
@@ -148,6 +261,8 @@ class CustomDense(tf.keras.layers.Dense):
         _argument_input_shape: placeholder for serialization via get_config
     """
     def __init__(self, input_shape, units, gain=2.0, use_weight_scaling=True, use_bias=True, activation=None, **kwargs):
+        warnings.warn(f"CustomDense is deprecated. Use tf.keras.layers.Dense wrapped in WeightScalingWrapper instead.",
+                      DeprecationWarning, 2)
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
@@ -230,6 +345,8 @@ class CustomConv2D(tf.keras.layers.Conv2D):
     """
     def __init__(self, input_shape, filters, kernel_size, gain=2.0, use_weight_scaling=True, use_bias=True,
                  activation=None, **kwargs):
+        warnings.warn(f"CustomConv2D is deprecated. Use tf.keras.layers.Conv2D wrapped in WeightScalingWrapper "
+                      f"instead.", DeprecationWarning, 2)
         if 'bias_initializer' in kwargs:
             logging.warning(f"{self.__class__.__name__} ignores bias_initializer={kwargs['bias_initializer']}")
             del kwargs['bias_initializer']
@@ -282,78 +399,4 @@ class CustomConv2D(tf.keras.layers.Conv2D):
         base_config['use_bias'] = self._wrapper_use_bias                             # overrides base config
         base_config.pop('bias_initializer', None)
         base_config.pop('kernel_initializer', None)
-        return base_config
-
-
-class WeightScalingWrapper(tf.keras.layers.Wrapper):
-    def __init__(self, layer, gain, **kwargs):
-        if not isinstance(layer, tf.keras.layers.Layer):
-            raise ValueError(f"wrapped layer must be type {tf.keras.layers.Layer} but received {type(layer)} instead")
-        name = kwargs.pop('name', f"{layer.name}/WeightScaled{layer.__class__.__name__}")
-        super(WeightScalingWrapper, self).__init__(layer=layer, name=name, **kwargs)
-        self.gain = gain
-
-        # get info from layer that is to be wrapped
-        self.has_bias = hasattr(self.layer, 'bias') or hasattr(self.layer, 'use_bias')
-        self.use_bias = self.has_bias and self.layer.use_bias
-        self.has_activation = hasattr(self.layer, 'activation')
-        self.activation = None
-        self.has_data_format = hasattr(self.layer, 'data_format')
-        self.weight_scale = tf.Variable(0.0, False, dtype=tf.float32, name=f'{self.layer.name}/weight_scale')
-
-        # check if layer has correct initializers set up
-        if self.use_bias and not isinstance(self.layer.bias_initializer, tf.keras.initializers.Zeros):
-            raise RuntimeError(f"bias_initializer of wrapped layer must be of instance {tf.keras.initializers.Zeros.__name__}")
-        if not isinstance(self.layer.kernel_initializer, tf.keras.initializers.RandomNormal):
-            raise RuntimeError(f"kernel_initializer of wrapped layer must be of instance {tf.keras.initializers.RandomNormal.__name__}")
-
-    def build(self, input_shape=None):
-        if not self.layer.built:
-            self.layer.build(input_shape=input_shape)
-
-        weight_scale, _ = he_kernel_initializer(self.layer.kernel.shape, self.gain)
-        self.weight_scale.assign(weight_scale)
-
-        # deactivate layer bias since wrapper takes care of it
-        if self.has_bias:
-            self.layer.use_bias = False
-
-        # redirect activation output (wrapper takes care of it)
-        if self.has_activation:
-            self.activation = self.layer.activation
-            self.layer.activation = None
-        self.built = True
-
-    def call(self, inputs, **kwargs):
-        # apply weight scaling trick to kernel output (bias and activation circumvented)
-        outputs = self.weight_scale * self.layer.call(inputs)
-
-        # proceed to add bias and use activation based on wrapped configuration
-        if self.use_bias:
-            if self.has_data_format:
-                if self.layer.data_format == 'channels_first':
-                    if self.layer.rank == 1:
-                        # nn.bias_add does not accept a 1D input tensor.
-                        bias = array_ops.reshape(self.layer.bias, (1, self.layer.filters, 1))
-                        outputs += bias
-                    else:
-                        outputs = tf.nn.bias_add(outputs, self.layer.bias, data_format='NCHW')
-                else:
-                    outputs = tf.nn.bias_add(outputs, self.layer.bias, data_format='NHWC')
-            else:
-                outputs = tf.nn.bias_add(outputs, self.layer.bias)
-
-        # wrapped activation
-        if self.activation is not None:
-            outputs = self.activation(outputs)
-        return outputs
-
-    def compute_output_shape(self, input_shape):
-        return self.layer.compute_output_shape(input_shape=input_shape)
-
-    def get_config(self):
-        base_config = super(WeightScalingWrapper, self).get_config()
-        base_config['gain'] = self.gain
-        base_config['layer']['config']['activation'] = activations.serialize(self.activation)  # overrides base config
-        base_config['layer']['config']['use_bias'] = self.use_bias                             # overrides base config
         return base_config
