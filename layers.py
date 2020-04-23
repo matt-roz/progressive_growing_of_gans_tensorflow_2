@@ -11,6 +11,11 @@ from utils import he_kernel_initializer, he_initializer_scale
 _channel_choices = ['NHWC', 'NCHW', 'channel_last', 'channel_first']
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# Custom Layers and Wrappers according to their publications
+# ----------------------------------------------------------------------------------------------------------------------
+
+
 class PixelNormalization(tf.keras.layers.Layer):
     """A Layer implementation of PixelNormalization as described in https://arxiv.org/abs/1710.10196.
     original implementation: https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L120
@@ -18,7 +23,7 @@ class PixelNormalization(tf.keras.layers.Layer):
     Normalizes the feature vector (on channel_axis) in each pixel to unit length. Used in the generator after each Conv.
 
     Args:
-        epsilon: epsilon for rsqrt to avoid division by zero
+        epsilon: small value for rsqrt to avoid division by zero
         data_format: specifies the channel dimension
         *args: passed down arguments to super().__init__()
         **kwargs: passed down keyword-arguments to super().__init__()
@@ -64,9 +69,8 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
     discriminator.
 
     Args:
-        epsilon: epsilon for sqrt calculation
+        epsilon: small value for stability in square root calculation
         data_format: specifies the channel dimension
-        *args: passed down arguments to super().__init__()
         **kwargs: passed down keyword-arguments to super().__init__()
 
     Attributes:
@@ -78,12 +82,12 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         TypeError: if epsilon is not of type float
         ValueError: if data_format is invalid
     """
-    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', *args, **kwargs):
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', **kwargs):
         if not isinstance(epsilon, float):
             raise TypeError(f"epsilon must be of type {float} but found {type(epsilon)} instead")
         if data_format not in _channel_choices:
             raise ValueError(f"data_format must be one of {_channel_choices} but found {data_format} instead")
-        super().__init__(*args, **kwargs)
+        super(StandardDeviationLayer, self).__init__(**kwargs)
         self.epsilon = epsilon
         self.data_format = data_format
         self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channel_last' else 1
@@ -223,7 +227,7 @@ class WeightScalingWrapper(tf.keras.layers.Wrapper):
 
 
 # ----------------------------------------------------------------------------------------------------------------------
-# deprecated layers (kept for backwards compatibility to trained and serialized h5 models)
+# deprecated layers (kept for backwards compatibility for trained and serialized h5 models)
 # ----------------------------------------------------------------------------------------------------------------------
 
 
