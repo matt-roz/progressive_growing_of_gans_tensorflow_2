@@ -18,8 +18,9 @@ def get_dataset_pipeline(
         interleave_parallel_calls: Optional[int] = None,
         prefetch_parallel_calls: Optional[int] = None,
         epochs: Optional[int] = None,
-        dataset_caching: bool = True,
-        dataset_cache_file: Union[str, os.PathLike] = "") -> Tuple[tf.data.Dataset, int]:
+        caching: bool = True,
+        cache_file: Union[str, os.PathLike] = "",
+        **kwargs) -> Tuple[tf.data.Dataset, int]:
     """Builds a tf.data.Dataset pipeline via tensorflow_datasets. Applies a logical chain of transformations based on
     input arguments. Returns the configured tf.data.Dataset instance and its number of entries. tf.data.Dataset is
     implicitly distribution-aware and can be used both in eager as well as graph mode.
@@ -36,8 +37,8 @@ def get_dataset_pipeline(
         interleave_parallel_calls: number of parallel threads to access dataset shards/files concurrently
         prefetch_parallel_calls: number of parallel threads to prefetch entries with
         epochs: number of epochs the dataset should loop for
-        dataset_caching: whether or not the dataset should be cached
-        dataset_cache_file: location of cache_file. If set to empty string "" the entire dataset will be loaded into
+        caching: whether or not the dataset should be cached
+        cache_file: location of cache_file. If set to empty string "" the entire dataset will be loaded into
             system memory (assert you have enough memory else this setting will run OOM).
 
     Returns:
@@ -51,8 +52,8 @@ def get_dataset_pipeline(
         dataset = dataset.map(map_func=process_func, num_parallel_calls=map_parallel_calls)
     if batch_size:
         dataset = dataset.batch(batch_size=batch_size)
-    if dataset_caching:
-        dataset = dataset.cache(filename=dataset_cache_file)
+    if caching:
+        dataset = dataset.cache(filename=cache_file)
     if buffer_size:
         dataset = dataset.shuffle(buffer_size=buffer_size)
     if epochs:
