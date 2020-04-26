@@ -30,9 +30,9 @@ general_config = EasyDict()             # generic configurations/options for out
 general_config.save                     = True      # bool: de-/activates model saving and checkpointing
 general_config.evaluate                 = True      # bool: de-/activates model evaluation
 general_config.logging                  = True      # bool: de-/activates file logging (incl. TensorBoard)
-general_config.out_dir                  = os.path.join('media', 'storage', 'outs', f'{timestamp}-{host}')
-general_config.log_dir                  = os.path.join('media', 'storage', 'outs', f'{timestamp}-{host}')
-general_config.data_dir                 = os.path.join('/home', 'matthias', 'tensorflow_datasets')
+general_config.out_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
+general_config.log_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
+general_config.data_dir                 = os.path.join('/media', 'storage', 'tensorflow_datasets')
 general_config.XLA                      = False     # bool: de-/activates XLA JIT compilation
 general_config.strategy                 = 'default' # str: distribution strategy; options are ['default', 'mirrored', 'multimirrored']
 general_config.checkpoint_freq          = 27        # uint: frequency to checkpoint models with (0 = disabled)
