@@ -134,7 +134,7 @@ def transfer_weights(
         source_model: the source to transfer weights from
         target_model: the target to transfer weights to
         is_cloned: whether or not source and target are exact clones (significantly speeds up computation)
-        layer_name_prefix: only layers starting with layer_name_prefix are transferred
+        layer_name_prefix: only layers, which names start with layer_name_prefix, are transferred
         beta: value for linear interpolation; must be within [0.0, 1.0)
 
     Raises:
