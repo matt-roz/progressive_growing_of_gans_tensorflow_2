@@ -66,7 +66,7 @@ data_config = EasyDict()                # configuration of data set pipeline
 data_config.registered_name             = 'celeb_a_hq'                   # str: name argument for tensorflow_datasets.load
 data_config.split                       = 'train'                        # str: split argument for tensorflow_datasets.load
 data_config.caching                     = False                          # bool: de-/activates dataset caching to file or system memory (see cache_file)
-data_config.cache_file                  = os.path.join('tmp', f'{timestamp}-tf-dataset.cache')  # str: ignored if caching is false, else location of temporary cache_file ("" = load entire dataset into system memory)
+data_config.cache_file                  = os.path.join('/tmp', f'{timestamp}-tf-dataset.cache')  # str: ignored if caching is false, else location of temporary cache_file ("" = load entire dataset into system memory)
 data_config.map_parallel_calls          = tf.data.experimental.AUTOTUNE  # int: number of parallel entries to apply 'process_functions' asynchronously
 data_config.prefetch_parallel_calls     = tf.data.experimental.AUTOTUNE  # int: number of parallel threads to prefetch entries with concurrently
 data_config.interleave_parallel_calls   = tf.data.experimental.AUTOTUNE  # int: number of parallel threads to access dataset shards/files
