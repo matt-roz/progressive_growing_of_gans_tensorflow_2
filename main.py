@@ -25,6 +25,7 @@ if __name__ == '__main__':
         conf.general.is_chief = True
         conf.general.is_cluster = False
         conf.general.nnodes = 1
+        raise NotImplementedError(f"repository currently does not support MirroredStrategy")
     elif conf.general.strategy == 'multimirrored':
         # parse info from $TF_CONFIG, index 0 is chief by definition, chief is also a worker (handling logging etc.)
         conf.general.strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
@@ -33,13 +34,15 @@ if __name__ == '__main__':
         conf.general.nnodes = len(tf_config['cluster']['worker'])
         conf.general.is_chief = tf_config['task']['index'] == 0
         conf.general.is_cluster = True
+        raise NotImplementedError(f"repository currently does not support MultiWorkerMirroredStrategy")
 
     # store certain attributes in configs
     conf.general.summary = tf.summary.create_file_writer(conf.general.log_dir)
     conf.model.final_stage = int(math.log2(conf.model.resolution))
     conf.model.alpha = conf.train.alpha_init
-    conf.log.log_file_path = os.path.join(conf.general.log_dir, conf.log.filename)
+    conf.model.alpha_step = (1.0 - conf.train.alpha_init) / (conf.train.epochs_per_stage * conf.data.num_examples / 2)
     conf.data.data_dir = conf.general.data_dir
+    conf.log.log_file_path = os.path.join(conf.general.log_dir, conf.log.filename)
 
     # resolve caching file (incorrect configuration might lead to OOM - log and print warning)
     if conf.data.caching:
