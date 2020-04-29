@@ -237,7 +237,7 @@ def train():
         # save eval images
         if conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
             save_eval_images(random_noise, model_gen, epoch, conf.general.out_dir, alpha=conf.model.alpha)
-            save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, stage=current_stage)
+            save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, alpha=1.0, stage=current_stage)
 
         # save model checkpoints
         if conf.general.save and conf.general.checkpoint_freq and (epoch + 1) % conf.general.checkpoint_freq == 0:
@@ -270,8 +270,8 @@ def train():
             image_shape = train_dataset.element_spec.shape[1:]
 
             # transfer weights from previous stage models to current_stage models
-            transfer_weights(source_model=model_gen, target_model=_gen)
-            transfer_weights(source_model=model_dis, target_model=_dis)
+            transfer_weights(source_model=model_gen, target_model=_gen, beta=0.0)
+            transfer_weights(source_model=model_dis, target_model=_dis, beta=0.0)
 
             # clear previous stage models, collect with gc
             del model_gen
