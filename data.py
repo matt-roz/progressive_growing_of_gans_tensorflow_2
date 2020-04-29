@@ -9,7 +9,7 @@ import tensorflow_datasets as tfds
 def get_dataset_pipeline(
         name: str,
         split: str,
-        data_dir: Union[str, os.PathLike],
+        data_dir: Union[str, os.PathLike, bytes],
         as_supervised: bool = False,
         batch_size: Optional[int] = None,
         buffer_size: Optional[int] = None,
@@ -19,21 +19,21 @@ def get_dataset_pipeline(
         prefetch_parallel_calls: Optional[int] = None,
         epochs: Optional[int] = None,
         caching: bool = True,
-        cache_file: Union[str, os.PathLike] = "",
-        **kwargs) -> Tuple[tf.data.Dataset, int]:
+        cache_file: Union[str, os.PathLike, bytes] = "",
+        **kwargs) -> tf.data.Dataset:
     """Builds a tf.data.Dataset pipeline via tensorflow_datasets. Applies a logical chain of transformations based on
-    input arguments. Returns the configured tf.data.Dataset instance and its number of entries. tf.data.Dataset is
-    implicitly distribution-aware and can be used both in eager as well as graph mode.
+    input arguments. Returns the configured tf.data.Dataset instance. tf.data.Dataset is implicitly distribution-aware
+    and can be used both in eager as well as graph mode.
 
     Args:
         name: name of dataset for tensorflow_dataset loader
         split: split to load from dataset with tensorflow_dataset loader
         data_dir: directory to which tensorflow_dataset should download to and load from, if files are pre-existent
         as_supervised: if true, tf.data.Dataset returns a mapping for each entry instead of a Sequence
-        batch_size: global batch size used to
+        batch_size: global batch size used to batch dataset with
         buffer_size: size of buffer to shuffle the dataset in
-        process_func: python callable to apply transformations on each data entry within the pipeline
-        map_parallel_calls: number of parallel entries to apply 'process_func' to asynchronously
+        process_func: callable function to apply transformations on each data entry within the pipeline
+        map_parallel_calls: number of parallel entries to apply 'process_func' with asynchronously
         interleave_parallel_calls: number of parallel threads to access dataset shards/files concurrently
         prefetch_parallel_calls: number of parallel threads to prefetch entries with
         epochs: number of epochs the dataset should loop for
@@ -42,12 +42,10 @@ def get_dataset_pipeline(
             system memory (assert you have enough memory else this setting will run OOM).
 
     Returns:
-        tuple: containing the tf.data.Dataset instance and its number of entries as an integer:
-            dataset: tf.data.Dataset instance
-            num_examples: number of entries
+        the tf.data.Dataset instance with appropriate chain of transformations
     """
     # load dataset from tensorflow_datasets, apply logical chain of transformations
-    dataset, info = tfds.load(name=name, split=split, data_dir=data_dir, with_info=True, as_supervised=as_supervised)
+    dataset = tfds.load(name=name, split=split, data_dir=data_dir, as_supervised=as_supervised)
     if process_func:
         dataset = dataset.map(map_func=process_func, num_parallel_calls=map_parallel_calls)
     if batch_size:
@@ -61,7 +59,7 @@ def get_dataset_pipeline(
     if buffer_size:
         dataset = dataset.prefetch(buffer_size=prefetch_parallel_calls)
     logging.info(f"Successfully loaded dataset={name} with split={split} from data_dir={data_dir}")
-    return dataset, info.splits[split].num_examples
+    return dataset
 
 
 @tf.function
