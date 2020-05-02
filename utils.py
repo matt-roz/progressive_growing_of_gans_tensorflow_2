@@ -1,6 +1,5 @@
 import os
 from typing import Union, Sequence, Tuple
-import logging
 
 import tensorflow as tf
 import numpy as np
@@ -70,17 +69,16 @@ def save_eval_images(
         stage: int = 0,
         data_format: str = "channel_last") -> None:
     """TODO(M. Rozanski): refactor args such that multiple output model is easier understandable here + add docu"""
-    assert isinstance(stage, int) and (stage == 0 or stage >= 2)
-    assert data_format in ['NCHW', 'NHWC', 'channel_first', 'channel_last']
+    assert data_format in ['NCHW', 'NHWC', 'channel_first', 'channel_last'], f'undefined data_format={data_format}'
     noise_shape = tf.shape(random_noise)
     channel_axis = -1 if data_format == 'NHWC' or data_format == 'channel_last' else 1
 
     # inference on generator to get images
-    if not stage:
+    if len(generator.outputs) == 1:  # generator only has output for current stage
         fixed_predictions = generator([random_noise, alpha], training=False).numpy()
         rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False).numpy()
-    else:
-        alpha = 1.0
+    else:  # generator has output for all stages
+        assert 2 <= stage <= 10, f'undefined stages for generator: {stage}'
         fixed_predictions = generator([random_noise, alpha], training=False)[stage - 2].numpy()
         rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False)[stage - 2].numpy()
 
@@ -104,7 +102,6 @@ def save_eval_images(
         predictions[:height, index * width:(index + 1) * width, :] = fixed_predictions[index]
         predictions[height:, index * width:(index + 1) * width, :] = rand_predictions[index]
     image = Image.fromarray(predictions)
-
     name = f"{prefix}{generator.name}_epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
     image.save(os.path.join(output_dir, name))
 
