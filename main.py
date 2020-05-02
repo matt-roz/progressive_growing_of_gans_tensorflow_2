@@ -36,7 +36,7 @@ if __name__ == '__main__':
         conf.general.is_cluster = True
         raise NotImplementedError(f"repository currently does not support MultiWorkerMirroredStrategy")
 
-    # store certain attributes in configs
+    # store certain attributes in configs that are only determined at runtime
     conf.general.summary = tf.summary.create_file_writer(conf.general.log_dir)
     conf.model.final_stage = int(math.log2(conf.model.resolution))
     conf.model.alpha = conf.train.alpha_init
