@@ -24,9 +24,7 @@ def train_step(
         optimizer_gen: tf.optimizers.Optimizer,
         optimizer_dis: tf.optimizers.Optimizer,
         image_batch: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
-    """Trains GAN for one batch. This function must not be annotated with `@tf.function` for dynamically growing models
-    (such as Progressive GANs), since model.__call__() functions won't be re-traced by TensorFlow 2. This is a
-    restriction for as long as TensorFlow doesn't allow for manual re-tracing (after each model growth).
+    """Trains Progressive GAN for one batch.
 
     Args:
         generator: generator model of the GAN
@@ -43,7 +41,6 @@ def train_step(
     # generate noise for projecting fake images
     batch_size = tf.shape(image_batch)[0]
     noise = tf.random.normal([batch_size, conf.model.noise_dim])
-
     with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
         # forward pass: inference through both models on tape to create predictions
         fake_images = generator([noise, conf.model.alpha], training=True)
@@ -84,9 +81,7 @@ def epoch_step(
         optimizer_dis: tf.optimizers.Optimizer,
         current_epoch: int,
         num_steps: int) -> Tuple[float, tf.Tensor, float]:
-    """Trains GAN for one epoch. This function must not be annotated with `@tf.function` for dynamically growing models
-    (such as Progressive GANs), since model.__call__() functions won't be re-traced by TensorFlow 2. This is a
-    restriction for as long as TensorFlow doesn't allow for manual re-tracing (after each model growth).
+    """Trains Progressive GAN for one epoch.
     
     Args:
         generator: generator model of the GAN
@@ -185,8 +180,8 @@ def train():
     current_stage = 2 if conf.model.use_stages else conf.model.stop_stage
     with conf.general.strategy.scope():
         model_gen, model_dis, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
-    image_shape = train_dataset.element_spec.shape[1:]
     transfer_weights(source_model=model_gen, target_model=final_gen, beta=0.0)  # force same initialization
+    image_shape = train_dataset.element_spec.shape[1:]
 
     # epoch iterator
     epochs = tqdm(range(conf.train.epochs), f"Progressive-GAN(stage={current_stage}, shape={image_shape}", unit='epoch')
@@ -197,8 +192,7 @@ def train():
     replica_batch_size = conf.data.replica_batch_sizes[current_stage]
     global_batch_size = replica_batch_size * conf.general.strategy.num_replicas_in_sync
     steps_per_epoch = int(conf.data.num_examples // global_batch_size) + 1
-    stage_start_time = time.time()
-    train_start_time = stage_start_time
+    stage_start_time = train_start_time = time.time()
     random_noise = tf.random.normal(shape=(16, conf.model.noise_dim), seed=1000)
 
     for epoch in epochs:
@@ -263,6 +257,7 @@ def train():
             stage_duration = str(timedelta(seconds=current_time - stage_start_time))
             train_duration = str(timedelta(seconds=current_time - train_start_time))
             logging.info(f"Completed stage={current_stage} in {stage_duration}, total_train_time={train_duration}")
+            stage_start_time = current_time
 
             # get dataset pipeline for new images, instantiate next stage models, get new optimizers
             with conf.general.strategy.scope():
@@ -287,7 +282,6 @@ def train():
             conf.model.alpha = conf.train.alpha_init
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             logging.info(f"Starting to train Stage {current_stage}")
-            stage_start_time = time.time()
 
     # final
     current_time = time.time()
