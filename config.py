@@ -34,7 +34,7 @@ general_config.logging                  = True      # bool: de-/activates file l
 general_config.out_dir                  = os.getcwd() + f'/outs/{timestamp}-{host}'   # os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
 general_config.log_dir                  = os.getcwd() + f'/outs/{timestamp}-{host}'   # os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
 general_config.data_dir                 = '~/tensorflow_datasets' # os.path.join('/media', 'storage', 'tensorflow_datasets')
-general_config.train_eagerly            = True     # bool: de-/activates execution of train_step in graph mode
+general_config.train_eagerly            = False     # bool: de-/activates execution of train_step in graph mode
 general_config.XLA                      = False     # bool: de-/activates XLA JIT compilation for train_step
 general_config.strategy                 = 'default' # str: distribution strategy; options are ['default', 'mirrored', 'multimirrored']
 general_config.checkpoint_freq          = 27        # uint: epoch frequency to checkpoint models with (0 = disabled)
@@ -56,18 +56,18 @@ model_config.use_noise_normalization    = True      # bool: de-/activates pixel_
 
 train_config = EasyDict()               # configuration of train parameters
 train_config.epochs                     = 15        # uint: number of epochs to train for
-train_config.epochs_per_stage           = 1         # uint: number of epochs per stage; alpha is increased linearly from alpha_init to 1.0 in halfway through
+train_config.epochs_per_stage           = 3         # uint: number of epochs per stage; alpha is increased linearly from alpha_init to 1.0 in halfway through
 train_config.alpha_init                 = 0.0       # float: initial alpha value to smooth in images from previous block after stage in model has been increased
 train_config.use_epsilon_penalty        = True      # bool: de-/activates epsilon_drift_penalty applied to discriminator loss as described in https://arxiv.org/abs/1710.10196
 train_config.drift_epsilon              = 0.001     # float: epsilon scalar for epsilon_drift_penalty as described in https://arxiv.org/abs/1710.10196
-train_config.use_gradient_penalty       = False      # bool: de-/activates gradient_penalty applied to discriminator loss as described in https://arxiv.org/abs/1704.00028
+train_config.use_gradient_penalty       = True      # bool: de-/activates gradient_penalty applied to discriminator loss as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_lambda                = 10.0      # float: lambda scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_target                = 1.0       # float: target scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
 
 data_config = EasyDict()                # configuration of data set pipeline
 data_config.registered_name             = 'celeb_a_hq'                   # str: name argument for tensorflow_datasets.load
-data_config.split                       = 'train'                        # str: split argument for tensorflow_datasets.load
-data_config.num_examples                = 30000                          # uint: number of examples train dataset will contain according to loaded split
+data_config.split                       = 'train[:10%]'                        # str: split argument for tensorflow_datasets.load
+data_config.num_examples                = 3000                          # uint: number of examples train dataset will contain according to loaded split
 data_config.caching                     = False                          # bool: de-/activates dataset caching to file or system memory (see cache_file)
 data_config.cache_file                  = os.path.join('/tmp', f'{timestamp}-tf-dataset.cache')  # str: ignored if caching is false, else location of temporary cache_file ("" = load entire dataset into system memory)
 data_config.process_func                = celeb_a_hq_process_func        # callable: function to process each dataset entry with
