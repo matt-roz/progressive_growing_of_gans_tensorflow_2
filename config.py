@@ -66,7 +66,7 @@ train_config.wgan_target                = 1.0       # float: target scalar for g
 
 data_config = EasyDict()                # configuration of data set pipeline
 data_config.registered_name             = 'celeb_a_hq'                   # str: name argument for tensorflow_datasets.load
-data_config.split                       = 'train[:]'                     # str: split argument for tensorflow_datasets.load
+data_config.split                       = 'train'                        # str: split argument for tensorflow_datasets.load
 data_config.num_examples                = 30000                          # uint: number of examples train dataset will contain according to loaded split
 data_config.caching                     = False                          # bool: de-/activates dataset caching to file or system memory (see cache_file)
 data_config.cache_file                  = os.path.join('/tmp', f'{timestamp}-tf-dataset.cache')  # str: ignored if caching is false, else location of temporary cache_file ("" = load entire dataset into system memory)

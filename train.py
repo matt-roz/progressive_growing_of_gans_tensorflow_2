@@ -69,9 +69,9 @@ def epoch_step(
         noise = tf.random.normal([_batch_size, conf.model.noise_dim])
         with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
             # forward pass: inference through both models on tape to create predictions
-            fake_images = generator.call([noise, alpha], training=True)
-            real_image_guesses = discriminator.call([batch, alpha], training=True)
-            fake_image_guesses = discriminator.call([fake_images, alpha], training=True)
+            fake_images = generator([noise, alpha], training=True)
+            real_image_guesses = discriminator([batch, alpha], training=True)
+            fake_image_guesses = discriminator([fake_images, alpha], training=True)
 
             # compute gradient penalty
             disc_gradient_loss = wasserstein_gradient_penalty(
@@ -88,7 +88,7 @@ def epoch_step(
             _disc_loss = wasserstein_discriminator_loss(real_image_guesses, fake_image_guesses)
             disc_stacked_loss = tf.stack((_disc_loss, disc_gradient_loss, disc_epsilon_loss))
             disc_loss = tf.reduce_sum(disc_stacked_loss)
-        tf.print((alpha, gen_loss, disc_loss))
+
         # collocate gradients from tapes
         gradients_generator = generator_tape.gradient(gen_loss, generator.trainable_variables)
         gradients_discriminator = discriminator_tape.gradient(disc_loss, discriminator.trainable_variables)
