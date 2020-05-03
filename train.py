@@ -18,60 +18,6 @@ from losses import wasserstein_discriminator_loss, wasserstein_generator_loss, d
 from utils import save_eval_images, transfer_weights
 
 
-def train_step(
-        generator: tf.keras.Model,
-        discriminator: tf.keras.Model,
-        optimizer_gen: tf.optimizers.Optimizer,
-        optimizer_dis: tf.optimizers.Optimizer,
-        image_batch: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
-    """Trains Progressive GAN for one batch.
-
-    Args:
-        generator: generator model of the GAN
-        discriminator: discriminator model of the GAN
-        optimizer_gen: optimizer to train generator with
-        optimizer_dis: optimizer to train discriminator with
-        image_batch: a 4D-Tensor containing the images to train with
-
-    Returns:
-        A tuple of length two containing batch train information:
-            gen_loss (float): mean generator loss
-            disc_loss (tf.Tensor): mean discriminator loss shape=(3,) with wasserstein_loss, gradient_loss, epsilon_loss
-    """
-    # generate noise for projecting fake images
-    batch_size = tf.shape(image_batch)[0]
-    noise = tf.random.normal([batch_size, conf.model.noise_dim])
-    with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
-        # forward pass: inference through both models on tape to create predictions
-        fake_images = generator([noise, conf.model.alpha], training=True)
-        real_image_guesses = discriminator([image_batch, conf.model.alpha], training=True)
-        fake_image_guesses = discriminator([fake_images, conf.model.alpha], training=True)
-
-        # compute gradient penalty
-        disc_gradient_loss = wasserstein_gradient_penalty(
-            discriminator, image_batch, fake_images, conf.train.wgan_target, conf.train.wgan_lambda, conf.model.alpha
-        ) if conf.train.use_gradient_penalty else 0.0
-
-        # compute drift penalty
-        disc_epsilon_loss = discriminator_epsilon_drift(
-            real_image_guesses, conf.train.drift_epsilon
-        ) if conf.train.use_epsilon_penalty else 0.0
-
-        # calculate losses
-        gen_loss = wasserstein_generator_loss(fake_image_guesses)
-        _disc_loss = wasserstein_discriminator_loss(real_image_guesses, fake_image_guesses)
-        disc_stacked_loss = tf.stack((_disc_loss, disc_gradient_loss, disc_epsilon_loss))
-        disc_loss = tf.reduce_sum(disc_stacked_loss)
-
-    # collocate gradients from tapes
-    gradients_generator = generator_tape.gradient(gen_loss, generator.trainable_variables)
-    gradients_discriminator = discriminator_tape.gradient(disc_loss, discriminator.trainable_variables)
-    # backward pass: apply gradients via optimizers to update models
-    optimizer_gen.apply_gradients(zip(gradients_generator, generator.trainable_variables))
-    optimizer_dis.apply_gradients(zip(gradients_discriminator, discriminator.trainable_variables))
-    return gen_loss, disc_stacked_loss
-
-
 def epoch_step(
         generator: tf.keras.Model,
         final_generator: tf.keras.Model,
@@ -99,13 +45,69 @@ def epoch_step(
             disc_loss (tf.Tensor): mean discriminator loss shape=(3,) with wasserstein_loss, gradient_loss, epsilon_loss
             image_count (float): number of images GAN was trained with in epoch
     """
+
+    def _train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+        """Trains Progressive GAN for one batch.
+
+        Args:
+            generator: generator model of the GAN
+            discriminator: discriminator model of the GAN
+            optimizer_gen: optimizer to train generator with
+            optimizer_dis: optimizer to train discriminator with
+            batch: a 4D-Tensor containing the images to train with
+
+        Returns:
+            A tuple of length two containing batch train information:
+                gen_loss (float): mean generator loss
+                disc_loss (tf.Tensor): mean discriminator loss shape=(3,) with wasserstein_loss, gradient_loss, epsilon_loss
+        """
+        # log tracing
+        if not conf.general.train_eagerly:
+            logging.info(f"tf.function tracing _train_step: batch={batch}, alpha={alpha}")
+        # generate noise for projecting fake images
+        _batch_size = tf.shape(batch)[0]
+        noise = tf.random.normal([_batch_size, conf.model.noise_dim])
+        with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
+            # forward pass: inference through both models on tape to create predictions
+            fake_images = generator.call([noise, alpha], training=True)
+            real_image_guesses = discriminator.call([batch, alpha], training=True)
+            fake_image_guesses = discriminator.call([fake_images, alpha], training=True)
+
+            # compute gradient penalty
+            disc_gradient_loss = wasserstein_gradient_penalty(
+                discriminator, batch, fake_images, conf.train.wgan_target, conf.train.wgan_lambda, alpha
+            ) if conf.train.use_gradient_penalty else 0.0
+
+            # compute drift penalty
+            disc_epsilon_loss = discriminator_epsilon_drift(
+                real_image_guesses, conf.train.drift_epsilon
+            ) if conf.train.use_epsilon_penalty else 0.0
+
+            # calculate losses
+            gen_loss = wasserstein_generator_loss(fake_image_guesses)
+            _disc_loss = wasserstein_discriminator_loss(real_image_guesses, fake_image_guesses)
+            disc_stacked_loss = tf.stack((_disc_loss, disc_gradient_loss, disc_epsilon_loss))
+            disc_loss = tf.reduce_sum(disc_stacked_loss)
+        tf.print((alpha, gen_loss, disc_loss))
+        # collocate gradients from tapes
+        gradients_generator = generator_tape.gradient(gen_loss, generator.trainable_variables)
+        gradients_discriminator = discriminator_tape.gradient(disc_loss, discriminator.trainable_variables)
+        # backward pass: apply gradients via optimizers to update models
+        optimizer_gen.apply_gradients(zip(gradients_generator, generator.trainable_variables))
+        optimizer_dis.apply_gradients(zip(gradients_discriminator, discriminator.trainable_variables))
+        return gen_loss, disc_stacked_loss
+
+    # compile tf.function
+    input_signature = [tf.TensorSpec(shape=dataset.element_spec.shape, dtype=tf.float32), tf.TensorSpec(shape=tuple(), dtype=tf.float32)]
+    train_step = _train_step if conf.general.train_eagerly else tf.function(_train_step, input_signature=input_signature, experimental_compile=conf.general.XLA)
+
     # return metrics
     _epoch_gen_loss, _epoch_dis_loss, _image_count = 0.0, 0.0, 0.0
     dataset = tqdm(iterable=dataset, desc=f"epoch-{current_epoch+1:04d}", unit="batch", total=num_steps, leave=False)
 
     for image_batch in dataset:
         batch_size = tf.shape(image_batch)[0]
-        batch_gen_loss, batch_dis_loss = train_step(generator, discriminator, optimizer_gen, optimizer_dis, image_batch)
+        batch_gen_loss, batch_dis_loss = train_step(image_batch, tf.constant(conf.model.alpha))
 
         # smooth available weights from current_stage model_gen into final generator
         transfer_weights(source_model=generator, target_model=final_generator, beta=conf.model.generator_ema)
@@ -166,7 +168,7 @@ def instantiate_stage_objects(stage: int) -> \
 
 def train():
     # set optimizer settings
-    tf.config.optimizer.set_jit(conf.general.XLA)
+    # tf.config.optimizer.set_jit(conf.general.XLA)
 
     # instantiate target model that will be an exponential moving average of generator, log summary
     with conf.general.strategy.scope():
@@ -230,8 +232,8 @@ def train():
 
         # save eval images
         if conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
-            save_eval_images(random_noise, model_gen, epoch, conf.general.out_dir, alpha=conf.model.alpha)
-            save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, alpha=1.0, stage=current_stage)
+            save_eval_images(random_noise, model_gen, epoch, conf.general.out_dir, alpha=tf.constant(conf.model.alpha))
+            save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, alpha=tf.constant(1.0), stage=current_stage)
 
         # save model checkpoints
         if conf.general.save and conf.general.checkpoint_freq and (epoch + 1) % conf.general.checkpoint_freq == 0:

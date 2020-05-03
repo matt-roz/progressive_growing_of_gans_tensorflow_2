@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import tensorflow as tf
 
 
@@ -34,10 +32,7 @@ def wasserstein_gradient_penalty(discriminator: tf.keras.Model, real_images: tf.
                                  wgan_target: float, wgan_lambda: float, *args) -> tf.Tensor:
     """Compute the wasserstein gradient penalty for a discriminator according to https://arxiv.org/abs/1704.00028.
 
-    This function must be called within the context of an active tf.GradientTape of the discriminator. This function
-    must not be annotated with `@tf.function` for dynamically growing models (such as Progressive GANs), since
-    discriminator.__call__() function won't be re-traced by TensorFlow 2. This is a restriction for as long as
-    TensorFlow doesn't allow for manual re-tracing (after each model growth).
+    This function must be called within the context of an active tf.GradientTape of the discriminator.
 
     Example:
         with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:

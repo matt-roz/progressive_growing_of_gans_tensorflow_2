@@ -64,8 +64,8 @@ def save_eval_images(
         generator: tf.keras.Model,
         epoch: int,
         output_dir: Union[str, bytes, os.PathLike],
+        alpha: tf.Tensor,
         prefix: str = "",
-        alpha: float = 0.0,
         stage: int = 0,
         data_format: str = "channel_last") -> None:
     """TODO(M. Rozanski): refactor args such that multiple output model is easier understandable here + add docu"""
@@ -102,7 +102,7 @@ def save_eval_images(
         predictions[:height, index * width:(index + 1) * width, :] = fixed_predictions[index]
         predictions[height:, index * width:(index + 1) * width, :] = rand_predictions[index]
     image = Image.fromarray(predictions)
-    name = f"{prefix}{generator.name}_epoch-{epoch+1:04d}_alpha-{alpha:.3f}_shape-{width}x{height}x{channels}.png"
+    name = f"{prefix}{generator.name}_epoch-{epoch+1:04d}_alpha-{alpha.numpy():.3f}_shape-{width}x{height}x{channels}.png"
     image.save(os.path.join(output_dir, name))
 
     # clean up

@@ -31,10 +31,11 @@ general_config = EasyDict()             # generic configurations/options for out
 general_config.save                     = True      # bool: de-/activates model saving and checkpointing
 general_config.evaluate                 = True      # bool: de-/activates model evaluation
 general_config.logging                  = True      # bool: de-/activates file logging (incl. TensorBoard)
-general_config.out_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
-general_config.log_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
-general_config.data_dir                 = os.path.join('/media', 'storage', 'tensorflow_datasets')
-general_config.XLA                      = False     # bool: de-/activates XLA JIT compilation
+general_config.out_dir                  = os.getcwd() + f'/outs/{timestamp}-{host}'   # os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
+general_config.log_dir                  = os.getcwd() + f'/outs/{timestamp}-{host}'   # os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')
+general_config.data_dir                 = '~/tensorflow_datasets' # os.path.join('/media', 'storage', 'tensorflow_datasets')
+general_config.train_eagerly            = True     # bool: de-/activates execution of train_step in graph mode
+general_config.XLA                      = False     # bool: de-/activates XLA JIT compilation for train_step
 general_config.strategy                 = 'default' # str: distribution strategy; options are ['default', 'mirrored', 'multimirrored']
 general_config.checkpoint_freq          = 27        # uint: epoch frequency to checkpoint models with (0 = disabled)
 general_config.eval_freq                = 1         # uint: epoch frequency to evaluate models with (0 = disabled)
@@ -43,7 +44,7 @@ general_config.log_freq                 = 1         # uint: epoch frequency to l
 model_config = EasyDict()               # configuration of model building
 model_config.leaky_alpha                = 0.3       # float: leakiness of LeakyReLU activations
 model_config.generator_ema              = 0.999     # float: exponential moving average of final_generator
-model_config.resolution                 = 256       # uint: final resolution in [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+model_config.resolution                 = 32        # uint: final resolution in [4, 8, 16, 32, 64, 128, 256, 512, 1024]
 model_config.noise_dim                  = 512       # uint: noise_dim generator projects from
 model_config.epsilon                    = 1e-8      # float: small constant for numerical stability in PixelNormalization as well as StandardDeviation Layer
 model_config.use_bias                   = True      # bool: de-/activates usage of biases in all trainable layers
@@ -54,18 +55,18 @@ model_config.use_alpha_smoothing        = True      # bool: de-/activates smooth
 model_config.use_noise_normalization    = True      # bool: de-/activates pixel_normalization on noise input at generator start
 
 train_config = EasyDict()               # configuration of train parameters
-train_config.epochs                     = 432       # uint: number of epochs to train for
-train_config.epochs_per_stage           = 54        # uint: number of epochs per stage; alpha is increased linearly from alpha_init to 1.0 in halfway through
+train_config.epochs                     = 15        # uint: number of epochs to train for
+train_config.epochs_per_stage           = 1         # uint: number of epochs per stage; alpha is increased linearly from alpha_init to 1.0 in halfway through
 train_config.alpha_init                 = 0.0       # float: initial alpha value to smooth in images from previous block after stage in model has been increased
 train_config.use_epsilon_penalty        = True      # bool: de-/activates epsilon_drift_penalty applied to discriminator loss as described in https://arxiv.org/abs/1710.10196
 train_config.drift_epsilon              = 0.001     # float: epsilon scalar for epsilon_drift_penalty as described in https://arxiv.org/abs/1710.10196
-train_config.use_gradient_penalty       = True      # bool: de-/activates gradient_penalty applied to discriminator loss as described in https://arxiv.org/abs/1704.00028
+train_config.use_gradient_penalty       = False      # bool: de-/activates gradient_penalty applied to discriminator loss as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_lambda                = 10.0      # float: lambda scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_target                = 1.0       # float: target scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
 
 data_config = EasyDict()                # configuration of data set pipeline
 data_config.registered_name             = 'celeb_a_hq'                   # str: name argument for tensorflow_datasets.load
-data_config.split                       = 'train'                        # str: split argument for tensorflow_datasets.load
+data_config.split                       = 'train[:]'                     # str: split argument for tensorflow_datasets.load
 data_config.num_examples                = 30000                          # uint: number of examples train dataset will contain according to loaded split
 data_config.caching                     = False                          # bool: de-/activates dataset caching to file or system memory (see cache_file)
 data_config.cache_file                  = os.path.join('/tmp', f'{timestamp}-tf-dataset.cache')  # str: ignored if caching is false, else location of temporary cache_file ("" = load entire dataset into system memory)
@@ -100,7 +101,7 @@ conf.optimizer                          = optimizer_config
 conf.log                                = log_config
 
 # uncomment next line to apply full training according to the original contribution: https://arxiv.org/abs/1710.10196
-# data_config.replica_batch_sizes = {2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3}; model_config.resolution = 1024; train_config.epochs = 540
+# data_config.replica_batch_sizes = {2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3}; # model_config.resolution = 1024; train_config.epochs = 540
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Placeholders (these configurations are automatically set at runtime)
