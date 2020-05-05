@@ -99,7 +99,7 @@ def epoch_step(
 
     # compile tf.function
     input_signature = [tf.TensorSpec(shape=dataset.element_spec.shape, dtype=tf.float32), tf.TensorSpec(shape=tuple(), dtype=tf.float32)]
-    train_step = _train_step if conf.general.train_eagerly else tf.function(_train_step, input_signature=input_signature, experimental_compile=conf.general.XLA)
+    train_step = _train_step if conf.general.train_eagerly else tf.function(_train_step, input_signature, experimental_compile=conf.general.XLA)
 
     # return metrics
     _epoch_gen_loss, _epoch_dis_loss, _image_count = 0.0, 0.0, 0.0
@@ -232,8 +232,8 @@ def train():
 
         # save eval images
         if conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
-            save_eval_images(random_noise, model_gen, epoch, conf.general.out_dir, alpha=tf.constant(conf.model.alpha))
-            save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, alpha=tf.constant(1.0), stage=current_stage)
+            save_eval_images(random_noise, model_gen, epoch, conf.general.out_dir, tf.constant(conf.model.alpha))
+            save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, tf.constant(1.0), stage=current_stage)
 
         # save model checkpoints
         if conf.general.save and conf.general.checkpoint_freq and (epoch + 1) % conf.general.checkpoint_freq == 0:
