@@ -57,8 +57,6 @@ if __name__ == '__main__':
             logging.warning(msg)
 
     # chief creates directories as well as logfile
-    if conf.general.is_chief and (conf.general.save or conf.general.evaluate):
-        create_directory(conf.general.out_dir)
     if conf.general.is_chief and conf.general.logging:
         create_directory(conf.general.log_dir)
         logging.basicConfig(filename=conf.log.log_file_path, format=conf.log.format, level=conf.log.level, datefmt=conf.log.datefmt)
@@ -72,13 +70,15 @@ if __name__ == '__main__':
         logging.info(f"XLA Compiler is {'disabled' if not conf.general.XLA else 'enabled'}")
         logging.info(f"Number of nodes in sync: {conf.general.nnodes}")
         logging.info(f"Number of replicas in sync: {conf.general.strategy.num_replicas_in_sync}")
+    if conf.general.is_chief and (conf.general.save or conf.general.evaluate):
+        create_directory(conf.general.out_dir)
         config_backup_file = os.path.join(conf.general.out_dir, os.path.basename(conf.general.config_file))
         copy(src=conf.general.config_file, dst=config_backup_file)
         logging.info(f"Backed up {conf.general.config_file} under {config_backup_file}")
-        logging.info(f"Started {__name__}")
 
     # start job
     with conf.general.summary.as_default():
+        logging.info(f"Started {__name__}")
         train()
 
     # job done
