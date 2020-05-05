@@ -25,7 +25,7 @@ if __name__ == '__main__':
         conf.general.is_chief = True
         conf.general.is_cluster = False
         conf.general.nnodes = 1
-        raise NotImplementedError(f"repository currently does not support MirroredStrategy")
+        # raise NotImplementedError(f"repository currently does not support MirroredStrategy")
     elif conf.general.strategy == 'multimirrored':
         # parse info from $TF_CONFIG, index 0 is chief by definition, chief is also a worker (handling logging etc.)
         conf.general.strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()

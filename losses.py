@@ -12,7 +12,7 @@ def wasserstein_discriminator_loss(real_output: tf.Tensor, fake_output: tf.Tenso
     Returns:
         tf.Tensor with shape=() depicting the wasserstein_loss
     """
-    return tf.reduce_mean(fake_output - real_output)
+    return fake_output - real_output
 
 
 @tf.function
@@ -25,7 +25,7 @@ def wasserstein_generator_loss(fake_output: tf.Tensor) -> tf.Tensor:
     Returns:
         tf.Tensor with shape=() depicting the wasserstein_loss
     """
-    return -tf.reduce_mean(fake_output)
+    return -fake_output
 
 
 def wasserstein_gradient_penalty(discriminator: tf.keras.Model, real_images: tf.Tensor, fake_images: tf.Tensor,
@@ -70,7 +70,7 @@ def wasserstein_gradient_penalty(discriminator: tf.keras.Model, real_images: tf.
         mixed_output = discriminator([mixed_images, *args], training=True)
     gradient_mixed = mixed_tape.gradient(mixed_output, mixed_images)
     gradient_mixed_norm = tf.sqrt(1e-8 + tf.reduce_sum(tf.square(gradient_mixed), axis=[1, 2, 3]))
-    gradient_penalty = tf.reduce_mean(tf.square(gradient_mixed_norm - wgan_target))
+    gradient_penalty = tf.square(gradient_mixed_norm - wgan_target)
     return gradient_penalty * (wgan_lambda / (wgan_target ** 2))
 
 
@@ -85,4 +85,4 @@ def discriminator_epsilon_drift(real_output: tf.Tensor, wgan_epsilon: float) -> 
     Returns:
         tf.Tensor with shape=() depicting the epsilon drift
     """
-    return tf.reduce_mean(tf.square(real_output)) * wgan_epsilon
+    return tf.square(real_output) * wgan_epsilon
