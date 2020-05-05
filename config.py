@@ -104,7 +104,7 @@ conf.log                                = log_config
 # data_config.replica_batch_sizes = {2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3}; # model_config.resolution = 1024; train_config.epochs = 540
 
 # laptop config
-general_config.out_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.log_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser('~/tensorflow_datasets'))); data_config.split = 'train[:2%]'; data_config.num_examples = 600; model_config.resolution = 32; train_config.epochs = 10; train_config.epochs_per_stage = 2; data_config.replica_batch_sizes = {2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3};
+# general_config.out_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.log_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser('~/tensorflow_datasets'))); data_config.split = 'train[:1%]'; data_config.num_examples = 300; model_config.resolution = 32; train_config.epochs = 10; train_config.epochs_per_stage = 2; data_config.replica_batch_sizes = {2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3};
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Placeholders (these configurations are automatically set at runtime)
