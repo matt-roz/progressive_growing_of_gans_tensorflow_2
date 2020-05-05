@@ -60,12 +60,6 @@ if __name__ == '__main__':
     if conf.general.is_chief and conf.general.logging:
         create_directory(conf.general.log_dir)
         logging.basicConfig(filename=conf.log.log_file_path, format=conf.log.format, level=conf.log.level, datefmt=conf.log.datefmt)
-        if conf.log.adapt_tf_logger:
-            tf_log = tf.get_logger()
-            file_hdlr = logging.FileHandler(filename=conf.log.log_file_path, mode='w')
-            file_hdlr.setFormatter(logging.Formatter(fmt=conf.log.format, datefmt=conf.log.datefmt))
-            tf_log.addHandler(hdlr=file_hdlr)
-            tf_log.setLevel(conf.log.tf_level)
         logging.info("Successfully set up logging")
         logging.info(f"XLA Compiler is {'disabled' if not conf.general.XLA else 'enabled'}")
         logging.info(f"Number of nodes in sync: {conf.general.nnodes}")
@@ -75,11 +69,17 @@ if __name__ == '__main__':
         config_backup_file = os.path.join(conf.general.out_dir, os.path.basename(conf.general.config_file))
         copy(src=conf.general.config_file, dst=config_backup_file)
         logging.info(f"Backed up {conf.general.config_file} under {config_backup_file}")
+    if conf.log.adapt_tf_logger:
+        tf_log = tf.get_logger()
+        tf_log.setLevel(conf.log.tf_level)
+        if conf.general.is_chief and conf.general.logging:
+            file_hdlr = logging.FileHandler(filename=conf.log.log_file_path, mode='w')
+            file_hdlr.setFormatter(logging.Formatter(fmt=conf.log.format, datefmt=conf.log.datefmt))
+            tf_log.addHandler(hdlr=file_hdlr)
 
     # start job
-    with conf.general.summary.as_default():
-        logging.info(f"Started {__name__}")
-        train()
+    logging.info(f"Started {__name__}")
+    train()
 
     # job done
     logging.info(f"{__name__} successfully terminated - job done!")
