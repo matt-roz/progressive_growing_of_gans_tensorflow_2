@@ -179,7 +179,7 @@ def train():
         plot_model(final_gen, os.path.join(conf.general.out_dir, f"net_{final_gen.name}.png"), True, False, dpi=178)
 
     # instantiate initial stage trainable models, optimizers and dataset
-    current_stage = 2 if conf.model.use_stages else conf.model.stop_stage
+    current_stage = 2 if conf.model.use_stages else conf.model.final_stage
     with conf.general.strategy.scope():
         model_gen, model_dis, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
     transfer_weights(source_model=model_gen, target_model=final_gen, beta=0.0)  # force same initialization
