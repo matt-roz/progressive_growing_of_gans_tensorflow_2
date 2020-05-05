@@ -23,6 +23,7 @@ discriminator = None
 optimizer_gen = None
 optimizer_dis = None
 global_batch_size = None
+train_step_fn = None
 
 
 def replica_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
@@ -67,7 +68,6 @@ def replica_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, t
         _disc_loss = tf.nn.compute_average_loss(_disc_loss, global_batch_size=global_batch_size)
         disc_stacked_loss = tf.stack((_disc_loss, disc_gradient_loss, disc_epsilon_loss))
         disc_loss = tf.reduce_sum(disc_stacked_loss)
-
     # collocate gradients from tapes
     gradients_generator = generator_tape.gradient(gen_loss, generator.trainable_variables)
     gradients_discriminator = discriminator_tape.gradient(disc_loss, discriminator.trainable_variables)
@@ -77,7 +77,9 @@ def replica_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, t
     return tf.stack((gen_loss, _disc_loss, disc_gradient_loss, disc_epsilon_loss))
 
 
-def train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+def node_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+    if not conf.general.train_eagerly:
+        logging.info(f'tf.function tracing train_step: batch={batch}, alpha={alpha}')
     per_replica_losses = conf.general.strategy.experimental_run_v2(replica_train_step, args=(batch, alpha))
     return conf.general.strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None)
 
@@ -109,23 +111,19 @@ def epoch_step(
             disc_loss (tf.Tensor): mean discriminator loss shape=(3,) with wasserstein_loss, gradient_loss, epsilon_loss
             image_count (float): number of images GAN was trained with in epoch
     """
-    # compile tf.function
-    input_signature = [tf.TensorSpec(shape=dataset.element_spec.shape, dtype=tf.float32), tf.TensorSpec(shape=tuple(), dtype=tf.float32)]
-    _train_step = train_step if conf.general.train_eagerly else tf.function(train_step, input_signature, experimental_compile=conf.general.XLA)
-
     # return metrics
     _epoch_gen_loss, _epoch_dis_loss, _image_count = 0.0, 0.0, 0.0
     dataset = tqdm(iterable=dataset, desc=f"epoch-{current_epoch+1:04d}", unit="batch", total=num_steps, leave=False)
 
     for image_batch in dataset:
-        batch_size = tf.shape(image_batch)[0]
-        batch_gen_loss, *batch_dis_loss = _train_step(image_batch, tf.constant(conf.model.alpha))
+        batch_gen_loss, *batch_dis_loss = train_step_fn(image_batch, tf.constant(conf.model.alpha))
+        batch_dis_loss = tf.stack(batch_dis_loss)
 
         # smooth available weights from current_stage generator into final generator
         transfer_weights(source_model=generator, target_model=final_gen, beta=conf.model.generator_ema)
 
         # compute moving average of loss metrics
-        _size = tf.cast(batch_size, tf.float32)
+        _size = tf.cast(global_batch_size, tf.float32)
         _epoch_gen_loss = (_image_count * _epoch_gen_loss + _size * batch_gen_loss) / (_image_count + _size)
         _epoch_dis_loss = (_image_count * _epoch_dis_loss + _size * batch_dis_loss) / (_image_count + _size)
         _image_count += _size
@@ -164,6 +162,9 @@ def instantiate_stage_objects(stage: int) -> \
     global_batch_size = conf.data.replica_batch_sizes[stage] * conf.general.strategy.num_replicas_in_sync
     dataset = get_dataset_pipeline(name=f"{conf.data.registered_name}/{2**stage}", batch_size=global_batch_size,
                                    buffer_size=conf.data.buffer_sizes[stage], **conf.data)
+    # options = tf.data.Options()
+    # options.experimental_distribute.auto_shard_policy = tf.data.experimental.AutoShardPolicy.OFF
+    # dataset = dataset.with_options(options)
     dataset = conf.general.strategy.experimental_distribute_dataset(dataset)
 
     # create models
@@ -181,7 +182,7 @@ def instantiate_stage_objects(stage: int) -> \
 
 
 def train():
-    global optimizer_gen, optimizer_dis, global_batch_size, final_gen, generator, discriminator
+    global optimizer_gen, optimizer_dis, global_batch_size, final_gen, generator, discriminator, train_step_fn
     # set optimizer settings
     # tf.config.optimizer.set_jit(conf.general.XLA)
 
@@ -198,7 +199,12 @@ def train():
     with conf.general.strategy.scope():
         generator, discriminator, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
     transfer_weights(source_model=generator, target_model=final_gen, beta=0.0)  # force same initialization
-    image_shape = train_dataset.element_spec.shape[1:]
+    if isinstance(train_dataset.element_spec, tf.TensorSpec):
+        image_shape = train_dataset.element_spec.shape[1:]
+    elif isinstance(train_dataset.element_spec, tf.python.distribute.values.PerReplicaSpec):
+        image_shape = train_dataset.element_spec._value_specs[0].shape[1:]
+    else:
+        raise RuntimeError()
 
     # epoch iterator
     epochs = tqdm(range(conf.train.epochs), f"Progressive-GAN(stage={current_stage}, shape={image_shape}", unit='epoch')
@@ -212,6 +218,10 @@ def train():
     stage_start_time = train_start_time = time.time()
     random_noise = tf.random.normal(shape=(16, conf.model.noise_dim), seed=1000)
 
+    # compile tf.function
+    # input_signature = [tf.TensorSpec(shape=train_dataset.element_spec.shape, dtype=tf.float32), tf.TensorSpec(shape=tuple(), dtype=tf.float32)]
+    train_step_fn = node_train_step if conf.general.train_eagerly else tf.function(node_train_step, experimental_compile=conf.general.XLA)
+
     for epoch in epochs:
         # make an epoch step
         epoch_start_time = time.time()
@@ -220,37 +230,38 @@ def train():
         total_image_count += int(image_count)
 
         # TensorBoard logging
-        if conf.general.logging and conf.general.log_freq and (epoch + 1) % conf.general.log_freq == 0:
-            batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
-            disc_gradient_penalty = dis_loss[1] * (conf.train.wgan_target ** 2) / conf.train.wgan_lambda
-            disc_gradient_mixed_norm = np.sqrt(disc_gradient_penalty + 1e-8) + conf.train.wgan_target
-            tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
-            tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
-            tf.summary.scalar(name="train_speed/seconds_per_kimages", data=1000*epoch_duration/image_count, step=epoch)
-            tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
-            tf.summary.scalar(name="train_speed/total_image_count", data=total_image_count, step=epoch)
-            tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
-            tf.summary.scalar(name="losses/epoch/discriminator", data=tf.reduce_sum(dis_loss), step=epoch)
-            tf.summary.scalar(name="losses/epoch/wasserstein_disc", data=dis_loss[0], step=epoch)
-            tf.summary.scalar(name="losses/epoch/gradient_penalty_disc", data=dis_loss[1], step=epoch)
-            tf.summary.scalar(name="losses/epoch/epsilon_penalty_disc", data=dis_loss[2], step=epoch)
-            tf.summary.scalar(name="losses/epoch/mixed_norms_disc", data=disc_gradient_mixed_norm, step=epoch)
-            tf.summary.scalar(name="model/epoch/current_stage", data=current_stage, step=epoch)
-            tf.summary.scalar(name="model/epoch/alpha", data=conf.model.alpha, step=epoch)
-            tf.summary.scalar(name="model/epoch/batch_size", data=global_batch_size, step=epoch)
-            tf.summary.scalar(name="model/epoch/replica_batch_size", data=replica_batch_size, step=epoch)
-            tf.summary.scalar(name="model/epoch/buffer_size", data=conf.data.buffer_sizes[current_stage], step=epoch)
-            tf.summary.scalar(name="model/epoch/steps_per_epoch", data=steps_per_epoch, step=epoch)
-            tf.summary.scalar(name="optimizers/epoch/discriminator_learning_rate", data=optimizer_dis.lr, step=epoch)
-            tf.summary.scalar(name="optimizers/epoch/generator_learning_rate", data=optimizer_gen.lr, step=epoch)
+        if conf.general.is_chief and conf.general.logging and conf.general.log_freq and (epoch + 1) % conf.general.log_freq == 0:
+            with conf.general.summary.as_default():
+                batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
+                disc_gradient_penalty = dis_loss[1] * (conf.train.wgan_target ** 2) / conf.train.wgan_lambda
+                disc_gradient_mixed_norm = np.sqrt(disc_gradient_penalty + 1e-8) + conf.train.wgan_target
+                tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
+                tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
+                tf.summary.scalar(name="train_speed/seconds_per_kimages", data=1000*epoch_duration/image_count, step=epoch)
+                tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
+                tf.summary.scalar(name="train_speed/total_image_count", data=total_image_count, step=epoch)
+                tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
+                tf.summary.scalar(name="losses/epoch/discriminator", data=tf.reduce_sum(dis_loss), step=epoch)
+                tf.summary.scalar(name="losses/epoch/wasserstein_disc", data=dis_loss[0], step=epoch)
+                tf.summary.scalar(name="losses/epoch/gradient_penalty_disc", data=dis_loss[1], step=epoch)
+                tf.summary.scalar(name="losses/epoch/epsilon_penalty_disc", data=dis_loss[2], step=epoch)
+                tf.summary.scalar(name="losses/epoch/mixed_norms_disc", data=disc_gradient_mixed_norm, step=epoch)
+                tf.summary.scalar(name="model/epoch/current_stage", data=current_stage, step=epoch)
+                tf.summary.scalar(name="model/epoch/alpha", data=conf.model.alpha, step=epoch)
+                tf.summary.scalar(name="model/epoch/batch_size", data=global_batch_size, step=epoch)
+                tf.summary.scalar(name="model/epoch/replica_batch_size", data=replica_batch_size, step=epoch)
+                tf.summary.scalar(name="model/epoch/buffer_size", data=conf.data.buffer_sizes[current_stage], step=epoch)
+                tf.summary.scalar(name="model/epoch/steps_per_epoch", data=steps_per_epoch, step=epoch)
+                tf.summary.scalar(name="optimizers/epoch/discriminator_learning_rate", data=optimizer_dis.lr, step=epoch)
+                tf.summary.scalar(name="optimizers/epoch/generator_learning_rate", data=optimizer_gen.lr, step=epoch)
 
         # save eval images
-        if conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
+        if conf.general.is_chief and conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
             save_eval_images(random_noise, generator, epoch, conf.general.out_dir, tf.constant(conf.model.alpha))
             save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, tf.constant(1.0), stage=current_stage)
 
         # save model checkpoints
-        if conf.general.save and conf.general.checkpoint_freq and (epoch + 1) % conf.general.checkpoint_freq == 0:
+        if conf.general.is_chief and conf.general.save and conf.general.checkpoint_freq and (epoch + 1) % conf.general.checkpoint_freq == 0:
             shape = 'x'.join([str(x) for x in image_shape])
             gen_file = os.path.join(conf.general.out_dir, f"cp_{generator.name}_epoch-{epoch+1:04d}_shape-{shape}.h5")
             dis_file = os.path.join(conf.general.out_dir, f"cp_{discriminator.name}_epoch-{epoch+1:04d}_shape-{shape}.h5")
@@ -278,7 +289,12 @@ def train():
             # get dataset pipeline for new images, instantiate next stage models, get new optimizers
             with conf.general.strategy.scope():
                 _gen, _dis, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
-            image_shape = train_dataset.element_spec.shape[1:]
+            if isinstance(train_dataset.element_spec, tf.TensorSpec):
+                image_shape = train_dataset.element_spec.shape[1:]
+            elif isinstance(train_dataset.element_spec, tf.python.distribute.values.PerReplicaSpec):
+                image_shape = train_dataset.element_spec._value_specs[0].shape[1:]
+            else:
+                raise RuntimeError()
 
             # transfer weights from previous stage models to current_stage models
             transfer_weights(source_model=generator, target_model=_gen, beta=0.0)
@@ -290,6 +306,10 @@ def train():
             gc.collect()  # note: this only cleans the python runtime not keras/tensorflow backend nor GPU memory
             generator = _gen
             discriminator = _dis
+
+            # compile tf.function
+            # input_signature = [tf.TensorSpec(shape=train_dataset.element_spec.shape, dtype=tf.float32), tf.TensorSpec(shape=tuple(), dtype=tf.float32)]
+            train_step_fn = node_train_step if conf.general.train_eagerly else tf.function(node_train_step, experimental_compile=conf.general.XLA)
 
             # update variables, counters/tqdm postfix
             replica_batch_size = conf.data.replica_batch_sizes[current_stage]
