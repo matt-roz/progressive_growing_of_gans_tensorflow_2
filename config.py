@@ -42,7 +42,7 @@ general_config.eval_freq                = 1         # uint: epoch frequency to e
 general_config.log_freq                 = 1         # uint: epoch frequency to log with (0 = disabled)
 
 model_config = EasyDict()               # configuration of model building
-model_config.leaky_alpha                = 0.3       # float: leakiness of LeakyReLU activations
+model_config.leaky_alpha                = 0.2       # float: leakiness of LeakyReLU activations
 model_config.generator_ema              = 0.999     # float: exponential moving average of final_generator
 model_config.resolution                 = 256       # uint: final resolution in [4, 8, 16, 32, 64, 128, 256, 512, 1024]
 model_config.noise_dim                  = 512       # uint: noise_dim generator projects from
