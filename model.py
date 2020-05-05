@@ -52,7 +52,7 @@ def generator_paper(
     if input_shape is None:
         input_shape = (noise_dim,)
     inputs = tf.keras.layers.Input(shape=input_shape, name='noise_input', dtype=tf.float32)
-    alpha = tf.keras.layers.Input(shape=tuple(), batch_size=1, name='alpha_input', dtype=tf.float32)
+    alpha = tf.keras.layers.Input(shape=(1, ), name='alpha_input', dtype=tf.float32)
     outputs = []
 
     # define building blocks
@@ -172,7 +172,7 @@ def discriminator_paper(
     if input_shape is None:
         input_shape = (2 ** stop_stage, 2 ** stop_stage, 3)
     inputs = tf.keras.layers.Input(shape=input_shape, name='image_input', dtype=tf.float32)
-    alpha = tf.keras.layers.Input(shape=tuple(), batch_size=1, name='alpha_input', dtype=tf.float32)
+    alpha = tf.keras.layers.Input(shape=(1, ), name='alpha_input', dtype=tf.float32)
 
     # define building blocks
     def _conv(filters, kernel_size, strides=(1, 1), gain=2.0, **_kwargs):
