@@ -39,8 +39,8 @@ def replica_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, t
             disc_loss (tf.Tensor): mean discriminator loss shape=(3,) with wasserstein_loss, gradient_loss, epsilon_loss
     """
     # generate noise for projecting fake images
-    _batch_size = tf.shape(batch)[0]
-    noise = tf.random.normal([_batch_size, conf.model.noise_dim])
+    replica_batch_size = tf.shape(batch)[0]
+    noise = tf.random.normal([replica_batch_size, conf.model.noise_dim])
     with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
         # forward pass: inference through both models on tape to create predictions
         fake_images = generator([noise, alpha], training=True)
@@ -232,14 +232,24 @@ def train():
         # TensorBoard logging
         if conf.general.is_chief and conf.general.logging and conf.general.log_freq and (epoch + 1) % conf.general.log_freq == 0:
             with conf.general.summary.as_default():
+                num_replicas = conf.general.strategy.num_replicas_in_sync
+                num_replicas_per_node = num_replicas / conf.general.nnodes
                 batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
                 disc_gradient_penalty = dis_loss[1] * (conf.train.wgan_target ** 2) / conf.train.wgan_lambda
                 disc_gradient_mixed_norm = np.sqrt(disc_gradient_penalty + 1e-8) + conf.train.wgan_target
-                tf.summary.scalar(name="train_speed/duration", data=epoch_duration, step=epoch)
-                tf.summary.scalar(name="train_speed/images_per_second", data=image_count/epoch_duration, step=epoch)
-                tf.summary.scalar(name="train_speed/seconds_per_kimages", data=1000*epoch_duration/image_count, step=epoch)
-                tf.summary.scalar(name="train_speed/batches_per_second", data=batches_per_second, step=epoch)
+                tf.summary.scalar(name="train_speed/epoch", data=epoch, step=epoch)
                 tf.summary.scalar(name="train_speed/total_image_count", data=total_image_count, step=epoch)
+                tf.summary.scalar(name="train_speed/epoch_duration", data=epoch_duration, step=epoch)
+                tf.summary.scalar(name="train_speed/train_duration", data=time.time() - train_start_time, step=epoch)
+                tf.summary.scalar(name="train_speed/global/images_per_second", data=image_count/epoch_duration, step=epoch)
+                tf.summary.scalar(name="train_speed/global/batches_per_second", data=batches_per_second, step=epoch)
+                tf.summary.scalar(name="train_speed/global/seconds_per_kimages", data=1000*epoch_duration/image_count, step=epoch)
+                tf.summary.scalar(name="train_speed/replica/images_per_second", data=image_count/(epoch_duration*num_replicas), step=epoch)
+                tf.summary.scalar(name="train_speed/replica/batches_per_second", data=batches_per_second/num_replicas, step=epoch)
+                tf.summary.scalar(name="train_speed/replica/seconds_per_kimages", data=1000*epoch_duration/(image_count*num_replicas), step=epoch)
+                tf.summary.scalar(name="train_speed/node/images_per_second", data=num_replicas_per_node*image_count/(epoch_duration*num_replicas), step=epoch)
+                tf.summary.scalar(name="train_speed/node/batches_per_second", data=num_replicas_per_node*batches_per_second/num_replicas, step=epoch)
+                tf.summary.scalar(name="train_speed/node/seconds_per_kimages", data=num_replicas_per_node*1000*epoch_duration/(image_count*num_replicas), step=epoch)
                 tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
                 tf.summary.scalar(name="losses/epoch/discriminator", data=tf.reduce_sum(dis_loss), step=epoch)
                 tf.summary.scalar(name="losses/epoch/wasserstein_disc", data=dis_loss[0], step=epoch)
@@ -252,6 +262,7 @@ def train():
                 tf.summary.scalar(name="model/epoch/replica_batch_size", data=replica_batch_size, step=epoch)
                 tf.summary.scalar(name="model/epoch/buffer_size", data=conf.data.buffer_sizes[current_stage], step=epoch)
                 tf.summary.scalar(name="model/epoch/steps_per_epoch", data=steps_per_epoch, step=epoch)
+                tf.summary.scalar(name="model/epoch/num_replicas", data=conf.general.strategy.num_replicas_in_sync, step=epoch)
                 tf.summary.scalar(name="optimizers/epoch/discriminator_learning_rate", data=optimizer_dis.lr, step=epoch)
                 tf.summary.scalar(name="optimizers/epoch/generator_learning_rate", data=optimizer_gen.lr, step=epoch)
 

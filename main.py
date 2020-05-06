@@ -78,7 +78,7 @@ if __name__ == '__main__':
             tf_log.addHandler(hdlr=file_hdlr)
 
     # start job
-    logging.info(f"Started {__name__}")
+    logging.info(f"Started {__name__} with config: {conf}")
     train()
 
     # job done
