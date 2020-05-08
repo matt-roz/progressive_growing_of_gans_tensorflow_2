@@ -81,7 +81,6 @@ def node_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, tf.T
     if not conf.general.train_eagerly:
         logging.info(f'tf.function tracing train_step: batch={batch}, alpha={alpha}')
     per_replica_losses = conf.general.strategy.experimental_run_v2(replica_train_step, args=(batch, alpha))
-    print(per_replica_losses.shape)
     return conf.general.strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None)
 
 
@@ -273,7 +272,7 @@ def train():
 
         # save eval images
         if conf.general.is_chief and conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
-            n = np.min(replica_batch_size, len(random_noise))
+            n = np.minimum(replica_batch_size, len(random_noise))
             save_eval_images(random_noise[:n], generator, epoch, conf.general.out_dir, tf.constant(conf.model.alpha))
             save_eval_images(random_noise[:n], final_gen, epoch, conf.general.out_dir, tf.constant(1.0), current_stage)
 
