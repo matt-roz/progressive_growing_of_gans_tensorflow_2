@@ -81,6 +81,7 @@ def node_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> Tuple[tf.Tensor, tf.T
     if not conf.general.train_eagerly:
         logging.info(f'tf.function tracing train_step: batch={batch}, alpha={alpha}')
     per_replica_losses = conf.general.strategy.experimental_run_v2(replica_train_step, args=(batch, alpha))
+    print(per_replica_losses.shape)
     return conf.general.strategy.reduce(tf.distribute.ReduceOp.SUM, per_replica_losses, axis=None)
 
 
@@ -235,47 +236,52 @@ def train():
                 num_replicas = conf.general.strategy.num_replicas_in_sync
                 num_replicas_per_node = num_replicas / conf.general.nnodes
                 batches_per_second = tf.cast(steps_per_epoch, tf.float32) / epoch_duration
+                images_per_second = image_count/epoch_duration
+                seconds_per_kimages = 1000*epoch_duration/image_count
                 disc_gradient_penalty = dis_loss[1] * (conf.train.wgan_target ** 2) / conf.train.wgan_lambda
                 disc_gradient_mixed_norm = np.sqrt(disc_gradient_penalty + 1e-8) + conf.train.wgan_target
-                tf.summary.scalar(name="train_speed/epoch", data=epoch, step=epoch)
-                tf.summary.scalar(name="train_speed/total_image_count", data=total_image_count, step=epoch)
-                tf.summary.scalar(name="train_speed/epoch_duration", data=epoch_duration, step=epoch)
-                tf.summary.scalar(name="train_speed/train_duration", data=time.time() - train_start_time, step=epoch)
-                tf.summary.scalar(name="train_speed/global/images_per_second", data=image_count/epoch_duration, step=epoch)
-                tf.summary.scalar(name="train_speed/global/batches_per_second", data=batches_per_second, step=epoch)
-                tf.summary.scalar(name="train_speed/global/seconds_per_kimages", data=1000*epoch_duration/image_count, step=epoch)
-                tf.summary.scalar(name="train_speed/replica/images_per_second", data=image_count/(epoch_duration*num_replicas), step=epoch)
-                tf.summary.scalar(name="train_speed/replica/batches_per_second", data=batches_per_second/num_replicas, step=epoch)
-                tf.summary.scalar(name="train_speed/replica/seconds_per_kimages", data=1000*epoch_duration/(image_count*num_replicas), step=epoch)
-                tf.summary.scalar(name="train_speed/node/images_per_second", data=num_replicas_per_node*image_count/(epoch_duration*num_replicas), step=epoch)
-                tf.summary.scalar(name="train_speed/node/batches_per_second", data=num_replicas_per_node*batches_per_second/num_replicas, step=epoch)
-                tf.summary.scalar(name="train_speed/node/seconds_per_kimages", data=num_replicas_per_node*1000*epoch_duration/(image_count*num_replicas), step=epoch)
-                tf.summary.scalar(name="losses/epoch/generator", data=gen_loss, step=epoch)
-                tf.summary.scalar(name="losses/epoch/discriminator", data=tf.reduce_sum(dis_loss), step=epoch)
-                tf.summary.scalar(name="losses/epoch/wasserstein_disc", data=dis_loss[0], step=epoch)
-                tf.summary.scalar(name="losses/epoch/gradient_penalty_disc", data=dis_loss[1], step=epoch)
-                tf.summary.scalar(name="losses/epoch/epsilon_penalty_disc", data=dis_loss[2], step=epoch)
-                tf.summary.scalar(name="losses/epoch/mixed_norms_disc", data=disc_gradient_mixed_norm, step=epoch)
-                tf.summary.scalar(name="model/epoch/current_stage", data=current_stage, step=epoch)
-                tf.summary.scalar(name="model/epoch/alpha", data=conf.model.alpha, step=epoch)
-                tf.summary.scalar(name="model/epoch/batch_size", data=global_batch_size, step=epoch)
-                tf.summary.scalar(name="model/epoch/replica_batch_size", data=replica_batch_size, step=epoch)
-                tf.summary.scalar(name="model/epoch/buffer_size", data=conf.data.buffer_sizes[current_stage], step=epoch)
-                tf.summary.scalar(name="model/epoch/steps_per_epoch", data=steps_per_epoch, step=epoch)
-                tf.summary.scalar(name="model/epoch/num_replicas", data=conf.general.strategy.num_replicas_in_sync, step=epoch)
-                tf.summary.scalar(name="optimizers/epoch/discriminator_learning_rate", data=optimizer_dis.lr, step=epoch)
-                tf.summary.scalar(name="optimizers/epoch/generator_learning_rate", data=optimizer_gen.lr, step=epoch)
+                tf.summary.scalar("train_speed/epoch", epoch, epoch)
+                tf.summary.scalar("train_speed/total_image_count", total_image_count, epoch)
+                tf.summary.scalar("train_speed/epoch_duration", epoch_duration, epoch)
+                tf.summary.scalar("train_speed/train_duration", time.time() - train_start_time, epoch)
+                tf.summary.scalar("train_speed/global/images_per_second", images_per_second, epoch)
+                tf.summary.scalar("train_speed/global/batches_per_second", batches_per_second, epoch)
+                tf.summary.scalar("train_speed/global/seconds_per_kimages", seconds_per_kimages, epoch)
+                tf.summary.scalar("train_speed/replica/images_per_second", images_per_second/num_replicas, epoch)
+                tf.summary.scalar("train_speed/replica/batches_per_second", batches_per_second/num_replicas, epoch)
+                tf.summary.scalar("train_speed/replica/seconds_per_kimages", seconds_per_kimages/num_replicas, epoch)
+                tf.summary.scalar("train_speed/node/images_per_second", num_replicas_per_node*images_per_second/num_replicas, epoch)
+                tf.summary.scalar("train_speed/node/batches_per_second", num_replicas_per_node*batches_per_second/num_replicas, epoch)
+                tf.summary.scalar("train_speed/node/seconds_per_kimages", num_replicas_per_node*seconds_per_kimages/num_replicas, epoch)
+                tf.summary.scalar("losses/epoch/generator", gen_loss, epoch)
+                tf.summary.scalar("losses/epoch/discriminator", tf.reduce_sum(dis_loss), epoch)
+                tf.summary.scalar("losses/epoch/wasserstein_disc", dis_loss[0], epoch)
+                tf.summary.scalar("losses/epoch/gradient_penalty_disc", dis_loss[1], epoch)
+                tf.summary.scalar("losses/epoch/epsilon_penalty_disc", dis_loss[2], epoch)
+                tf.summary.scalar("losses/epoch/mixed_norms_disc", disc_gradient_mixed_norm, epoch)
+                tf.summary.scalar("model/epoch/current_stage", current_stage, epoch)
+                tf.summary.scalar("model/epoch/alpha", conf.model.alpha, epoch)
+                tf.summary.scalar("model/epoch/global_batch_size", global_batch_size, epoch)
+                tf.summary.scalar("model/epoch/node_batch_size", num_replicas_per_node*replica_batch_size, epoch)
+                tf.summary.scalar("model/epoch/replica_batch_size", replica_batch_size, epoch)
+                tf.summary.scalar("model/epoch/buffer_size", conf.data.buffer_sizes[current_stage], epoch)
+                tf.summary.scalar("model/epoch/steps_per_epoch", steps_per_epoch, epoch)
+                tf.summary.scalar("model/epoch/num_replicas", num_replicas, epoch)
+                tf.summary.scalar("model/epoch/num_nodes", conf.general.nnodes, epoch)
+                tf.summary.scalar("optimizers/epoch/discriminator_learning_rate", optimizer_dis.lr, epoch)
+                tf.summary.scalar("optimizers/epoch/generator_learning_rate", optimizer_gen.lr, epoch)
 
         # save eval images
         if conf.general.is_chief and conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
-            save_eval_images(random_noise, generator, epoch, conf.general.out_dir, tf.constant(conf.model.alpha))
-            save_eval_images(random_noise, final_gen, epoch, conf.general.out_dir, tf.constant(1.0), stage=current_stage)
+            n = np.min(replica_batch_size, len(random_noise))
+            save_eval_images(random_noise[:n], generator, epoch, conf.general.out_dir, tf.constant(conf.model.alpha))
+            save_eval_images(random_noise[:n], final_gen, epoch, conf.general.out_dir, tf.constant(1.0), current_stage)
 
         # save model checkpoints
         if conf.general.is_chief and conf.general.save and conf.general.checkpoint_freq and (epoch + 1) % conf.general.checkpoint_freq == 0:
-            shape = 'x'.join([str(x) for x in image_shape])
-            gen_file = os.path.join(conf.general.out_dir, f"cp_{generator.name}_epoch-{epoch+1:04d}_shape-{shape}.h5")
-            dis_file = os.path.join(conf.general.out_dir, f"cp_{discriminator.name}_epoch-{epoch+1:04d}_shape-{shape}.h5")
+            s = 'x'.join([str(x) for x in image_shape])
+            gen_file = os.path.join(conf.general.out_dir, f"cp_{generator.name}_epoch-{epoch+1:04d}_shape-{s}.h5")
+            dis_file = os.path.join(conf.general.out_dir, f"cp_{discriminator.name}_epoch-{epoch+1:04d}_shape-{s}.h5")
             fin_file = os.path.join(conf.general.out_dir, f"cp_{final_gen.name}_epoch-{epoch+1:04d}.h5")
             generator.save(filepath=gen_file)
             discriminator.save(filepath=dis_file)
