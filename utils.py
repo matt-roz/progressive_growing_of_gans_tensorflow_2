@@ -65,8 +65,8 @@ def save_eval_images(
         epoch: int,
         output_dir: Union[str, bytes, os.PathLike],
         alpha: tf.Tensor,
-        prefix: str = "",
         stage: int = 0,
+        prefix: str = "",
         data_format: str = "channel_last") -> None:
     """TODO(M. Rozanski): refactor args such that multiple output model is easier understandable here + add docu"""
     assert data_format in ['NCHW', 'NHWC', 'channel_first', 'channel_last'], f'undefined data_format={data_format}'
