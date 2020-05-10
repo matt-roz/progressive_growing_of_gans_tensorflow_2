@@ -101,11 +101,7 @@ conf.optimizer                          = optimizer_config
 conf.log                                = log_config
 
 # uncomment next line to apply full training according to the original contribution: https://arxiv.org/abs/1710.10196
-<<<<<<< HEAD
 # model_config.resolution = 1024; train_config.epochs = 540
-=======
-data_config.replica_batch_sizes = {2: 128, 3: 128, 4: 128, 5: 64, 6: 32, 7: 16, 8: 8, 9: 6, 10: 4}; # model_config.resolution = 1024; train_config.epochs = 540
->>>>>>> f43d5429b9a43a9b09e4032a2170086cd84ff75c
 
 # laptop config
 # general_config.out_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.log_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser('~/tensorflow_datasets'))); data_config.split = 'train[:1%]'; data_config.num_examples = 300; model_config.resolution = 32; train_config.epochs = 10; train_config.epochs_per_stage = 2; data_config.replica_batch_sizes = {2: 32, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3};
