@@ -29,17 +29,19 @@ Additionally this repository aims to provide:
 * **Readability**: written *for the reader* to be easily understandable and allow long-term maintainability
 * **Configurability**: adaptable via [`config.py`](config.py)
 
-<!-- ![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif) -->
+<![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif) 
 
 #### Confguration
+> Global Configuration
+
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
 | save | bool  | [True, False] | True | de-/activates model saving and checkpointing |
 | evaluate | bool  | [True, False] | True | de-/activates model  evaluation|
 | logging | bool  | [True, False] | True | de-/activates file logging (incl. TensorBoard) |
-| out_dir | str, bytes, os.PathLike |  | f'/media/storage/outs/{timestamp}-{host}' | directory for output files (images, models) |
-| log_dir | str, bytes, os.PathLike |  | f'/media/storage/outs/{timestamp}-{host}' | directory for logging (logfile, tensorboard) |
-| data_dir | str, bytes, os.PathLike |  | f'/media/storage/tensorflow_datasets' | directory to load tensorflow_datasets from |
+| out_dir | str, os.PathLike |  | /media/storage/outs/ | directory for output files (images, models) |
+| log_dir | str, os.PathLike |  | /media/storage/outs/ | directory for logging (logfile, tensorboard) |
+| data_dir | str, os.PathLike |  | /media/storage/tensorflow_datasets | directory to load tensorflow_datasets from |
 | save | bool  | [True, False] | True | de-/activates model saving and checkpointing |
 | train_eagerly | bool  | [True, False] | False | de-/activates execution of train_step in graph mode |
 | XLA | bool | [True, False] | False | de-/activates XLA JIT compilation for train_step |
@@ -47,6 +49,22 @@ Additionally this repository aims to provide:
 | checkpoint_freq | uint |  | 1 | epoch frequency to checkpoint models with (0 = disabled) |
 | eval_freq | uint |  | 1 | epoch frequency to evaluate models with (0 = disabled) |
 | log_freq | uint |  | 1 | epoch frequency to log with (0 = disabled) |
+
+> Model Configuration
+
+| identifier | dtype | choices | default | meaning |
+|---|---|---|---|---|
+| leaky_alpha | float  |  | 0.2 | leakiness of LeakyReLU activations |
+| generator_ema | float  |  | 0.999 | de-/activates model saving and checkpointing |
+| resolution | uint  | [4, 8, 16, 32, 64, 128, 256, 512, 1024] | 256 | final resolution |
+| noise_dim | uint  | | 512 | noise_dim generator projects from |
+| epsilon | float  | | 1e-8 | small constant for numerical stability in model layers |
+| use_bias | bool  | [True, False] | True | de-/activates usage of biases in all trainable layers |
+| use_stages | bool  | [True, False] | True | de-/activates progressive training of model in stages |
+| use_fused_scaling | bool  | [True, False] | True | de-/activates up- and downsampling of images via strides=(2, 2) in Conv2D and Conv2DTranspose |
+| use_weight_scaling | bool  | [True, False] | True | de-/activates weight scaling trick |
+| use_alpha_smoothing | bool  | [True, False] | True | de-/activates smoothing in an image from a previous block after increasing the model to a new stage |
+| use_noise_normalization | bool  | [True, False] | True | de-/activates pixel_normalization on noise input at generator start |
 
 #### Roadmap
 
