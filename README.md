@@ -32,7 +32,7 @@ Additionally this repository aims to provide:
 <![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif) 
 
 #### Confguration
-> Global Configuration
+> global configuration
 
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
@@ -41,7 +41,7 @@ Additionally this repository aims to provide:
 | logging | bool  | [True, False] | True | de-/activates file logging (incl. TensorBoard) |
 | out_dir | str, os.PathLike |  | /media/storage/outs/ | directory for output files (images, models) |
 | log_dir | str, os.PathLike |  | /media/storage/outs/ | directory for logging (logfile, tensorboard) |
-| data_dir | str, os.PathLike |  | /media/storage/tensorflow_datasets | directory to load tensorflow_datasets from |
+| data_dir | str, os.PathLike |  | ~/tensorflow_datasets | directory to load tensorflow_datasets from |
 | save | bool  | [True, False] | True | de-/activates model saving and checkpointing |
 | train_eagerly | bool  | [True, False] | False | de-/activates execution of train_step in graph mode |
 | XLA | bool | [True, False] | False | de-/activates XLA JIT compilation for train_step |
@@ -50,7 +50,7 @@ Additionally this repository aims to provide:
 | eval_freq | uint |  | 1 | epoch frequency to evaluate models with (0 = disabled) |
 | log_freq | uint |  | 1 | epoch frequency to log with (0 = disabled) |
 
-> Model Configuration
+> model configuration
 
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
@@ -66,6 +66,31 @@ Additionally this repository aims to provide:
 | use_alpha_smoothing | bool  | [True, False] | True | de-/activates smoothing in an image from a previous block after increasing the model to a new stage |
 | use_noise_normalization | bool  | [True, False] | True | de-/activates pixel_normalization on noise input at generator start |
 
+> train loop configuration
+
+| identifier | dtype | choices | default | meaning |
+|---|---|---|---|---|
+| epochs | uint  |  | 432 | number of epochs to train for |
+| epochs_per_stage | uint  |  | 54 | number of epochs per stage; alpha is increased linearly from alpha_init to 1.0 |
+| alpha_init | float  |  | 0.0 |  initial alpha value to smooth in images from previous block |
+| use_epsilon_penalty | bool | [True, False] | True | de-/activates epsilon_drift_penalty applied to discriminator loss |
+| drift_epsilon | float  |  | 0.001 |  epsilon scalar for epsilon_drift_penalty |
+| use_gradient_penalty | bool | [True, False] | True | de-/activates gradient_penalty applied to discriminator loss  |
+| wgan_lambda | float  |  | 10.0 | wasserstein lambda scalar for gradient_penalty |
+| wgan_target | float  |  | 1.0 | wasserstein target scalar for gradient_penalty |
+
+> data pipeline configuration
+
+tbd
+
+> optimizer configuration
+
+tbd
+
+> logging configuration
+
+tbd
+
 #### Roadmap
 
 - [ ] support for NCHW (channel_first) data format
@@ -78,3 +103,5 @@ Additionally this repository aims to provide:
   - [ ] FID
   - [ ] R&R
 
+#### Personal Note
+Looking for (job/internship) opportunities world wide: matthiasrozanski[at]gmail.com
