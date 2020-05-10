@@ -55,7 +55,7 @@ Additionally this repository aims to provide:
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
 | leaky_alpha | float  |  | 0.2 | leakiness of LeakyReLU activations |
-| generator_ema | float  |  | 0.999 | de-/activates model saving and checkpointing |
+| generator_ema | float  |  | 0.999 | exponential moving average of final_generator |
 | resolution | uint  | [4, 8, 16, 32, 64, 128, 256, 512, 1024] | 256 | final resolution |
 | noise_dim | uint  | | 512 | noise_dim generator projects from |
 | epsilon | float  | | 1e-8 | small constant for numerical stability in model layers |
