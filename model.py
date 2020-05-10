@@ -12,6 +12,7 @@ def generator_paper(
         input_shape: Optional[Sequence] = None,
         noise_dim: int = 512,
         stop_stage: int = 10,
+        epsilon: float = 1e-8,
         use_bias: bool = True,
         use_weight_scaling: bool = True,
         use_fused_scaling: bool = True,
@@ -32,6 +33,7 @@ def generator_paper(
         input_shape: optional input_shape without batch_dimension. Defaults to (noise_dim,)
         noise_dim: dimensionality of noise vector to project generated images from
         stop_stage: the stage of the generator; output will be (2**stop_stage, 2**stop_stage, 3)
+        epsilon: small constant for numerical stability in PixelNormalization
         use_bias: whether or not layers should use biases or not
         use_weight_scaling: whether or not the weight scaling trick should be applied
         use_fused_scaling: whether or not the Conv2DTranspose should be used for UpSampling2D images
@@ -85,16 +87,16 @@ def generator_paper(
         _name = f'block_{stage}/conv2d_upsample_1' if use_fused_scaling else f'block_{stage}/conv2d_1'
         _x = _conv_layer(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=_name)(value)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_1')(_x)
-        _x = PixelNormalization(name=f'block_{stage}/pixel_norm_1')(_x)
+        _x = PixelNormalization(epsilon, name=f'block_{stage}/pixel_norm_1')(_x)
         _x = _conv(filters=num_features[stage], kernel_size=(3, 3), gain=2.0, name=f'block_{stage}/conv2d_2')(_x)
         _x = LeakyReLU(leaky_alpha, name=f'block_{stage}/activation_2')(_x)
-        _x = PixelNormalization(name=f'block_{stage}/pixel_norm_2')(_x)
+        _x = PixelNormalization(epsilon, name=f'block_{stage}/pixel_norm_2')(_x)
         return _x
 
     # noise input
     x = inputs
     if use_noise_normalization:
-        x = PixelNormalization(name='block_s/pixel_norm_noise')(x)
+        x = PixelNormalization(epsilon, name='block_s/pixel_norm_noise')(x)
 
     # project from noise to minimum features, apply block 2 to features
     _target_shape = (4, 4, num_features[2])
@@ -102,10 +104,10 @@ def generator_paper(
     features = _dense(units=_units, gain=0.125, name='block_2/dense_projector')(x)
     features = Reshape(_target_shape, name='block_2/feature_reshape')(features)
     features = LeakyReLU(leaky_alpha, name='block_2/activation_1')(features)
-    features = PixelNormalization(name='block_2/pixel_norm_1')(features)
+    features = PixelNormalization(epsilon, name='block_2/pixel_norm_1')(features)
     features = _conv(filters=num_features[2], kernel_size=(3, 3), gain=2.0, name=f'block_2/conv2d_1')(features)
     features = LeakyReLU(leaky_alpha, name='block_2/activation_2')(features)
-    features = PixelNormalization(name='block_2/pixel_norm_2')(features)
+    features = PixelNormalization(epsilon, name='block_2/pixel_norm_2')(features)
     image_out = to_rgb(value=features, stage=2)
     outputs.append(tf.nn.tanh(image_out, name=f'block_2/final_image_activation'))
 
@@ -137,6 +139,7 @@ def generator_paper(
 def discriminator_paper(
         input_shape: Optional[Sequence] = None,
         stop_stage: int = 10,
+        epsilon: float = 1e-8,
         leaky_alpha: float = 0.2,
         use_bias: bool = True,
         use_weight_scaling: bool = True,
@@ -154,6 +157,7 @@ def discriminator_paper(
     Args:
         input_shape: optional input_shape without batch_dimension. Defaults to (2**stop_stage, 2**stop_stage, 3)
         stop_stage: the stage of the discriminator; output will be (1,)
+        epsilon: small constant for numerical stability in StandardDeviation Layer
         use_bias: whether or not layers should use biases or not
         use_weight_scaling: whether or not the weight scaling trick should be applied
         use_fused_scaling: whether or not the Conv2D strides should be used for DownSampling2D images
@@ -223,7 +227,7 @@ def discriminator_paper(
             features = features_image + (features - features_image) * alpha
 
     # final block 2
-    x = StandardDeviationLayer(name=f'block_2/stddev_layer')(features)
+    x = StandardDeviationLayer(epsilon, name=f'block_2/stddev_layer')(features)
     x = _conv(filters=num_features[2], kernel_size=(3, 3), gain=2.0, name=f'block_2/conv2d_1')(x)
     x = LeakyReLU(leaky_alpha, name=f'block_2/activation_1')(x)
     _units = x.shape[-1]
