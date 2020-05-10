@@ -34,10 +34,10 @@ general_config.logging                  = True      # bool: de-/activates file l
 general_config.out_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')  # os.PathLike: directory for output files (images, models)
 general_config.log_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')  # os.PathLike: directory for logging (logfile, tensorboard)
 general_config.data_dir                 = os.path.join('/media', 'storage', 'tensorflow_datasets')          # os.PathLike: directory to load tensorflow_datasets from
-general_config.train_eagerly            = True      # bool: de-/activates execution of train_step in graph mode
+general_config.train_eagerly            = False     # bool: de-/activates execution of train_step in graph mode
 general_config.XLA                      = False     # bool: de-/activates XLA JIT compilation for train_step
-general_config.strategy                 = 'mirrored' # str: distribution strategy; options are ['default', 'mirrored', 'multimirrored']
-general_config.checkpoint_freq          = 27        # uint: epoch frequency to checkpoint models with (0 = disabled)
+general_config.strategy                 = 'default' # str: distribution strategy; options are ['default', 'mirrored', 'multimirrored']
+general_config.checkpoint_freq          = 54        # uint: epoch frequency to checkpoint models with (0 = disabled)
 general_config.eval_freq                = 1         # uint: epoch frequency to evaluate models with (0 = disabled)
 general_config.log_freq                 = 1         # uint: epoch frequency to log with (0 = disabled)
 
@@ -74,7 +74,7 @@ data_config.process_func                = celeb_a_hq_process_func        # calla
 data_config.map_parallel_calls          = tf.data.experimental.AUTOTUNE  # int: number of parallel entries to apply 'process_functions' asynchronously
 data_config.prefetch_parallel_calls     = tf.data.experimental.AUTOTUNE  # int: number of parallel threads to prefetch entries with concurrently
 data_config.interleave_parallel_calls   = tf.data.experimental.AUTOTUNE  # int: number of parallel threads to access dataset shards/files
-data_config.replica_batch_sizes         = {2: 512, 3: 378, 4: 256, 5: 128, 6: 64, 7: 32, 8: 14, 9: 6, 10: 3}             # dict: batch_size at stage
+data_config.replica_batch_sizes         = {2: 128, 3: 128, 4: 128, 5: 64, 6: 32, 7: 16, 8: 8, 9: 6, 10: 4}               # dict: batch_size at stage
 data_config.buffer_sizes                = {2: 5000, 3: 5000, 4: 2500, 5: 1250, 6: 500, 7: 400, 8: 300, 9: 250, 10: 200}  # dict: buffer_size at stage
 
 optimizer_config = EasyDict()           # configuration of adam optimizers for both generator and discriminator
@@ -87,8 +87,8 @@ log_config = EasyDict()                 # configuration of general purpose loggi
 log_config.device_placement             = False   # bool: de-/activates TensorFlow device placement
 log_config.level                        = 'INFO'  # str: log level of project logger; options are ['INFO', 'CRITICAL', 'ERROR', 'WARNING', 'DEBUG', 'NOTSET']
 log_config.filename                     = f'{timestamp}-{host}-logfile.log'                         # str: name of resulting log file
-log_config.format                       = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'    # str: log formating for formatter
-log_config.datefmt                      = '%m/%d/%Y %I:%M:%S %p'                                    # str: datetime formating for formatter
+log_config.format                       = '%(asctime)s - %(name)s - %(levelname)s - %(message)s'    # str: log formatting for formatter
+log_config.datefmt                      = '%m/%d/%Y %I:%M:%S %p'                                    # str: datetime formatting for formatter
 log_config.adapt_tf_logger              = True    # bool: de-/activates overriding of tf_logger configuration
 log_config.tf_level                     = 'ERROR' # str: log level of TensorFlow logging logger; options are ['INFO', 'CRITICAL', 'ERROR', 'WARNING', 'DEBUG', 'NOTSET']
 
@@ -101,10 +101,10 @@ conf.optimizer                          = optimizer_config
 conf.log                                = log_config
 
 # uncomment next line to apply full training according to the original contribution: https://arxiv.org/abs/1710.10196
-# data_config.replica_batch_sizes = {2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3}; # model_config.resolution = 1024; train_config.epochs = 540
+# model_config.resolution = 1024; train_config.epochs = 540
 
 # laptop config
-# general_config.out_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.log_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser('~/tensorflow_datasets'))); data_config.split = 'train[:1%]'; data_config.num_examples = 300; model_config.resolution = 32; train_config.epochs = 10; train_config.epochs_per_stage = 2; data_config.replica_batch_sizes = {2: 16, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3};
+# general_config.out_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.log_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser('~/tensorflow_datasets'))); data_config.split = 'train[:1%]'; data_config.num_examples = 300; model_config.resolution = 32; train_config.epochs = 10; train_config.epochs_per_stage = 2; data_config.replica_batch_sizes = {2: 32, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3};
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Placeholders (these configurations are automatically set at runtime)
