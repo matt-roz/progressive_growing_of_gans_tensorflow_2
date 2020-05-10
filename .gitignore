@@ -6,11 +6,11 @@ __pycache__/
 
 # saves, logs, tf.outs
 *.log
-checkpoint
-*.tf.data*
-*.tf.index
 *tfevents*
 *.hdf5
+*.h5
+*.png
+*.mp4
 
 # cluster outs/errs
 *.er
