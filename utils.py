@@ -1,5 +1,6 @@
 import os
-from typing import Union, Sequence, Tuple
+import warnings
+from typing import Union, Tuple
 
 import tensorflow as tf
 import numpy as np
@@ -60,26 +61,43 @@ def create_directory(directory: Union[str, bytes, os.PathLike], *args, **kwargs)
 # ----------------------------------------------------------------------------------------------------------------------
 
 def save_eval_images(
-        random_noise: tf.Tensor,
+        static_noise: tf.Tensor,
         generator: tf.keras.Model,
         epoch: int,
         output_dir: Union[str, bytes, os.PathLike],
         alpha: tf.Tensor,
         stage: int = 0,
-        prefix: str = "",
         data_format: str = "channel_last") -> None:
-    """TODO(M. Rozanski): refactor args such that multiple output model is easier understandable here + add docu"""
-    assert data_format in ['NCHW', 'NHWC', 'channel_first', 'channel_last'], f'undefined data_format={data_format}'
-    noise_shape = tf.shape(random_noise)
+    """Inferences twice through generator and stores a png-image consisting of two rows. First row consists of images 
+    generated via static_noise; second row consists of images rolled randomly. Images are stored in output_dir.
+
+    Args:
+        static_noise: a 2D-Tensor of shape=(num_images, noise_dim) depicting the noise to inference on
+        generator: generator model to synthesize images with
+        epoch: current epoch number generator was trained with
+        output_dir: output location for images
+        alpha: smoothing value of all alpha-smoothed layers (image compositions)
+        stage: if generator has multiple outputs, stage depicts which output to use
+        data_format: data_format that generator returns
+
+    Raises:
+        ValueError: if data_format is not of appropriate value
+        IndexError: if generator does not have output for depicted stage
+    """
+    if data_format not in ['NCHW', 'NHWC', 'channel_first', 'channel_last']:
+        raise ValueError(f'undefined data_format={data_format}')
+    noise_shape = tf.shape(static_noise)
     channel_axis = -1 if data_format == 'NHWC' or data_format == 'channel_last' else 1
 
     # inference on generator to get images
     if len(generator.outputs) == 1:  # generator only has output for current stage
-        fixed_predictions = generator([random_noise, alpha], training=False).numpy()
+        fixed_predictions = generator([static_noise, alpha], training=False).numpy()
         rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False).numpy()
     else:  # generator has output for all stages
-        assert 2 <= stage <= 10, f'undefined stages for generator: {stage}'
-        fixed_predictions = generator([random_noise, alpha], training=False)[stage - 2].numpy()
+        if not 2 <= stage <= 10:
+            raise IndexError(f"generator has output for stages 2 to {2+len(generator.outputs)}: "
+                             f"attempted to access output for stage {stage}")
+        fixed_predictions = generator([static_noise, alpha], training=False)[stage - 2].numpy()
         rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False)[stage - 2].numpy()
 
     # from tf.float32 [-1, 1] to np.uint8 [0, 255]
@@ -102,7 +120,7 @@ def save_eval_images(
         predictions[:height, index * width:(index + 1) * width, :] = fixed_predictions[index]
         predictions[height:, index * width:(index + 1) * width, :] = rand_predictions[index]
     image = Image.fromarray(predictions)
-    name = f"{prefix}{generator.name}_epoch-{epoch+1:04d}_alpha-{alpha.numpy():.3f}_shape-{width}x{height}x{channels}.png"
+    name = f"{generator.name}_epoch-{epoch+1:04d}_alpha-{alpha.numpy():.3f}_shape-{width}x{height}x{channels}.png"
     image.save(os.path.join(output_dir, name))
 
     # clean up
@@ -160,12 +178,18 @@ def transfer_weights(
 
 
 def he_initializer_scale(kernel_shape, gain: float = 2.0):
+    """float: he_normal according to the original contribution https://arxiv.org/abs/1502.01852"""
     fan_in = np.prod(kernel_shape[:-1])
     return np.sqrt(gain / fan_in)
 
 
+# ----------------------------------------------------------------------------------------------------------------------
+# deprecated functions (kept for backwards compatibility for trained and serialized h5 models)
+# ----------------------------------------------------------------------------------------------------------------------
+
 def he_kernel_initializer(kernel_shape, gain: float = 2.0, use_weight_scaling: bool = True) \
         -> Tuple[float, tf.initializers.Initializer]:
+    warnings.warn("he_kernel_initializer is deprecated. Use he_initializer_scale instead.", DeprecationWarning, 2)
     he_scale = he_initializer_scale(kernel_shape=kernel_shape, gain=gain)
     if use_weight_scaling:
         op_scale = he_scale
@@ -174,22 +198,3 @@ def he_kernel_initializer(kernel_shape, gain: float = 2.0, use_weight_scaling: b
         op_scale = 1.0
         kernel_initializer = tf.keras.initializers.RandomNormal(0, he_scale)
     return op_scale, kernel_initializer
-
-
-@tf.function
-def h2_grad_norm(input_tensor: tf.Tensor) -> tf.Tensor:
-    return tf.sqrt(1e-8 + tf.reduce_sum(tf.square(input_tensor)) / tf.reduce_prod(tf.shape(input_tensor)))
-
-
-@tf.function
-def block_grad_norm(block_grads: Sequence[tf.Tensor]) -> tf.Tensor:
-    grad_num = tf.shape(block_grads)[0]
-    grad_norms = tf.TensorArray(dtype=tf.float32, size=grad_num, dynamic_size=False)
-    _index = 0
-
-    for grad in block_grads:
-        grad_norms[_index] = h2_grad_norm(grad)
-        _index += 1
-
-    return h2_grad_norm(tf.stack(grad_norms))
-
