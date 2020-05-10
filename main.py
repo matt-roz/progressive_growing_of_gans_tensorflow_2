@@ -25,7 +25,6 @@ if __name__ == '__main__':
         conf.general.is_chief = True
         conf.general.is_cluster = False
         conf.general.nnodes = 1
-        # raise NotImplementedError(f"repository currently does not support MirroredStrategy")
     elif conf.general.strategy == 'multimirrored':
         # parse info from $TF_CONFIG, index 0 is chief by definition, chief is also a worker (handling logging etc.)
         conf.general.strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
@@ -34,10 +33,8 @@ if __name__ == '__main__':
         conf.general.nnodes = len(tf_config['cluster']['worker'])
         conf.general.is_chief = tf_config['task']['index'] == 0
         conf.general.is_cluster = True
-        raise NotImplementedError(f"repository currently does not support MultiWorkerMirroredStrategy")
 
     # store certain attributes in configs that are only determined at runtime
-    conf.general.summary = tf.summary.create_file_writer(conf.general.log_dir)
     conf.model.final_stage = int(math.log2(conf.model.resolution))
     conf.model.alpha = conf.train.alpha_init
     conf.model.alpha_step = (1.0 - conf.train.alpha_init) / (conf.train.epochs_per_stage * conf.data.num_examples / 2)
@@ -64,6 +61,7 @@ if __name__ == '__main__':
         logging.info(f"XLA Compiler is {'disabled' if not conf.general.XLA else 'enabled'}")
         logging.info(f"Number of nodes in sync: {conf.general.nnodes}")
         logging.info(f"Number of replicas in sync: {conf.general.strategy.num_replicas_in_sync}")
+        conf.general.summary = tf.summary.create_file_writer(conf.general.log_dir)
     if conf.general.is_chief and (conf.general.save or conf.general.evaluate):
         create_directory(conf.general.out_dir)
         config_backup_file = os.path.join(conf.general.out_dir, os.path.basename(conf.general.config_file))
