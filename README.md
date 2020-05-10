@@ -32,8 +32,8 @@ Additionally this repository aims to provide:
 ![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif) 
 
 #### Confguration
-> global configuration
 
+<details><summary>Global Settings</summary>
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
 | save | bool  | [True, False] | True | de-/activates model saving and checkpointing |
@@ -49,9 +49,10 @@ Additionally this repository aims to provide:
 | checkpoint_freq | uint |  | 1 | epoch frequency to checkpoint models with (0 = disabled) |
 | eval_freq | uint |  | 1 | epoch frequency to evaluate models with (0 = disabled) |
 | log_freq | uint |  | 1 | epoch frequency to log with (0 = disabled) |
+</details>
 
-> model configuration
 
+<details><summary>Model</summary>
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
 | leaky_alpha | float  |  | 0.2 | leakiness of LeakyReLU activations |
@@ -65,9 +66,9 @@ Additionally this repository aims to provide:
 | use_weight_scaling | bool  | [True, False] | True | de-/activates weight scaling trick |
 | use_alpha_smoothing | bool  | [True, False] | True | de-/activates smoothing in an image from a previous block after increasing the model to a new stage |
 | use_noise_normalization | bool  | [True, False] | True | de-/activates pixel_normalization on noise input at generator start |
+</details>
 
-> train loop configuration
-
+<details><summary>Training</summary>
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
 | epochs | uint  |  | 432 | number of epochs to train for |
@@ -78,18 +79,20 @@ Additionally this repository aims to provide:
 | use_gradient_penalty | bool | [True, False] | True | de-/activates gradient_penalty applied to discriminator loss |
 | wgan_lambda | float  |  | 10.0 | wasserstein lambda scalar for gradient_penalty |
 | wgan_target | float  |  | 1.0 | wasserstein target scalar for gradient_penalty |
+</details>
 
-> data pipeline configuration
-
+<details><summary>Data Pipeline</summary>
 tbd
+</details>
 
-> optimizer configuration
-
+<details><summary>Optimizer</summary>
 tbd
+</details>
 
-> logging configuration
-
+<details><summary>Logging</summary>
 tbd
+</details>
+
 
 #### Roadmap
 
