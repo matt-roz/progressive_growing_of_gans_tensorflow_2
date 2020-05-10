@@ -161,39 +161,40 @@ def epoch_step(dataset: tf.data.Dataset, current_epoch: int, num_steps: int) -> 
 def instantiate_stage_objects(stage: int) -> \
         Tuple[tf.keras.Model, tf.keras.Model, tf.data.Dataset, tf.optimizers.Optimizer, tf.optimizers.Optimizer]:
     """Helper function that constructs and returns all tf/keras objects necessary for training stage 'stage'."""
-    global optimizer_gen, optimizer_dis, global_batch_size
-    # create optimizers with new learning rates
-    optimizer_gen = tf.keras.optimizers.Adam(
-        learning_rate=conf.optimizer.learning_rates[stage],
-        beta_1=conf.optimizer.beta1,
-        beta_2=conf.optimizer.beta2,
-        epsilon=conf.optimizer.epsilon,
-        name='adam_generator')
-    optimizer_dis = tf.keras.optimizers.Adam(
-        learning_rate=conf.optimizer.learning_rates[stage],
-        beta_1=conf.optimizer.beta1,
-        beta_2=conf.optimizer.beta2,
-        epsilon=conf.optimizer.epsilon,
-        name='adam_discriminator')
+    with conf.general.strategy.scope():
+        # create optimizers with new learning rates
+        optim_gen = tf.keras.optimizers.Adam(
+            learning_rate=conf.optimizer.learning_rates[stage],
+            beta_1=conf.optimizer.beta1,
+            beta_2=conf.optimizer.beta2,
+            epsilon=conf.optimizer.epsilon,
+            name='adam_generator')
+        optim_dis = tf.keras.optimizers.Adam(
+            learning_rate=conf.optimizer.learning_rates[stage],
+            beta_1=conf.optimizer.beta1,
+            beta_2=conf.optimizer.beta2,
+            epsilon=conf.optimizer.epsilon,
+            name='adam_discriminator')
 
-    # construct dataset
-    global_batch_size = conf.data.replica_batch_sizes[stage] * conf.general.strategy.num_replicas_in_sync
-    dataset = get_dataset_pipeline(name=f"{conf.data.registered_name}/{2**stage}", batch_size=global_batch_size,
-                                   buffer_size=conf.data.buffer_sizes[stage], **conf.data)
-    dataset = conf.general.strategy.experimental_distribute_dataset(dataset)
+        # construct dataset
+        batch_size = conf.data.replica_batch_sizes[stage] * conf.general.strategy.num_replicas_in_sync
+        dataset = get_dataset_pipeline(name=f"{conf.data.registered_name}/{2**stage}", batch_size=batch_size,
+                                       buffer_size=conf.data.buffer_sizes[stage], **conf.data)
+        dataset = conf.general.strategy.experimental_distribute_dataset(dataset)
 
-    # create models
-    gen = generator_paper(stop_stage=stage, name=f"generator_stage_{stage}", **conf.model)
-    dis = discriminator_paper(stop_stage=stage, name=f"discriminator_stage_{stage}", **conf.model)
+        # create models
+        gen = generator_paper(stop_stage=stage, name=f"generator_stage_{stage}", **conf.model)
+        dis = discriminator_paper(stop_stage=stage, name=f"discriminator_stage_{stage}", **conf.model)
 
     # logging, plotting, ship
-    logging.info(f"Successfully instantiated {dis.name} and {gen.name} for stage={stage}")
-    gen.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
-    dis.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+    if conf.general.is_chief and conf.general.logging:
+        logging.info(f"Successfully instantiated {dis.name} and {gen.name} for stage={stage}")
+        gen.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
+        dis.summary(print_fn=logging.info, line_length=150, positions=[.33, .55, .67, 1.])
     if conf.general.is_chief and conf.general.save:
         plot_model(gen, os.path.join(conf.general.out_dir, f"net_{gen.name}.png"), True, False, dpi=178)
         plot_model(dis, os.path.join(conf.general.out_dir, f"net_{dis.name}.png"), True, False, dpi=178)
-    return gen, dis, dataset, optimizer_gen, optimizer_dis
+    return gen, dis, dataset, optim_gen, optim_dis
 
 
 def train():
@@ -209,8 +210,7 @@ def train():
 
     # instantiate initial stage trainable models, optimizers and dataset
     current_stage = 2 if conf.model.use_stages else conf.model.final_stage
-    with conf.general.strategy.scope():
-        generator, discriminator, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
+    generator, discriminator, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
     transfer_weights(source_model=generator, target_model=final_gen, beta=0.0)  # force same initialization
 
     # extract image_shape from train_dataset's element_spec (which is depending on distribution strategy)
@@ -309,8 +309,7 @@ def train():
             stage_start_time = current_time
 
             # get dataset pipeline for new images, instantiate next stage models, get new optimizers
-            with conf.general.strategy.scope():
-                _gen, _dis, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
+            _gen, _dis, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
 
             # extract image_shape from train_dataset's element_spec (which is depending on distribution strategy)
             if isinstance(train_dataset.element_spec, tf.TensorSpec):
