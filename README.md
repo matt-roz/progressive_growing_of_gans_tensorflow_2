@@ -71,11 +71,11 @@ Additionally this repository aims to provide:
 | identifier | dtype | choices | default | meaning |
 |---|---|---|---|---|
 | epochs | uint  |  | 432 | number of epochs to train for |
-| epochs_per_stage | uint  |  | 54 | number of epochs per stage; alpha is increased linearly from alpha_init to 1.0 |
+| epochs_per_stage | uint  |  | 54 | number of epochs per stage |
 | alpha_init | float  |  | 0.0 |  initial alpha value to smooth in images from previous block |
 | use_epsilon_penalty | bool | [True, False] | True | de-/activates epsilon_drift_penalty applied to discriminator loss |
 | drift_epsilon | float  |  | 0.001 |  epsilon scalar for epsilon_drift_penalty |
-| use_gradient_penalty | bool | [True, False] | True | de-/activates gradient_penalty applied to discriminator loss  |
+| use_gradient_penalty | bool | [True, False] | True | de-/activates gradient_penalty applied to discriminator loss |
 | wgan_lambda | float  |  | 10.0 | wasserstein lambda scalar for gradient_penalty |
 | wgan_target | float  |  | 1.0 | wasserstein target scalar for gradient_penalty |
 
