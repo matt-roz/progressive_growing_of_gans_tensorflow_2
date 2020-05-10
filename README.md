@@ -37,6 +37,16 @@ Additionally this repository aims to provide:
 | save | bool  | [True, False] | True | de-/activates model saving and checkpointing |
 | evaluate | bool  | [True, False] | True | de-/activates model  evaluation|
 | logging | bool  | [True, False] | True | de-/activates file logging (incl. TensorBoard) |
+| out_dir | str, bytes, os.PathLike |  | f'/media/storage/outs/{timestamp}-{host}' | directory for output files (images, models) |
+| log_dir | str, bytes, os.PathLike |  | f'/media/storage/outs/{timestamp}-{host}' | directory for logging (logfile, tensorboard) |
+| data_dir | str, bytes, os.PathLike |  | f'/media/storage/tensorflow_datasets' | directory to load tensorflow_datasets from |
+| save | bool  | [True, False] | True | de-/activates model saving and checkpointing |
+| train_eagerly | bool  | [True, False] | False | de-/activates execution of train_step in graph mode |
+| XLA | bool | [True, False] | False | de-/activates XLA JIT compilation for train_step |
+| strategy | bool | [True, False] | True | de-/activates file logging (incl. TensorBoard) |
+| checkpoint_freq | uint |  | 1 | epoch frequency to checkpoint models with (0 = disabled) |
+| eval_freq | uint |  | 1 | epoch frequency to evaluate models with (0 = disabled) |
+| log_freq | uint |  | 1 | epoch frequency to log with (0 = disabled) |
 
 #### Roadmap
 
