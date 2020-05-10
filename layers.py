@@ -25,7 +25,6 @@ class PixelNormalization(tf.keras.layers.Layer):
     Args:
         epsilon: small value for rsqrt to avoid division by zero
         data_format: specifies the channel dimension
-        *args: passed down arguments to super().__init__()
         **kwargs: passed down keyword-arguments to super().__init__()
 
     Attributes:
@@ -37,12 +36,12 @@ class PixelNormalization(tf.keras.layers.Layer):
         TypeError: if epsilon is not of type float
         ValueError: if data_format is invalid
     """
-    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', *args, **kwargs):
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', **kwargs):
         if not isinstance(epsilon, float):
             raise TypeError(f"epsilon must be of type {float} but found {type(epsilon)} instead")
         if data_format not in _channel_choices:
             raise ValueError(f"data_format must be one of {_channel_choices} but found {data_format} instead")
-        super().__init__(*args, **kwargs)
+        super().__init__(**kwargs)
         self.epsilon = epsilon
         self.data_format = data_format
         self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channel_last' else 1
