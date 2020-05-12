@@ -13,12 +13,12 @@ def generator_paper(
         noise_dim: int = 512,
         stop_stage: int = 10,
         epsilon: float = 1e-8,
+        leaky_alpha: float = 0.2,
         use_bias: bool = True,
         use_weight_scaling: bool = True,
         use_fused_scaling: bool = True,
         use_alpha_smoothing: bool = True,
         return_all_outputs: bool = False,
-        leaky_alpha: float = 0.2,
         use_noise_normalization: bool = True,
         num_features: Optional[Dict[int, int]] = None,
         name: str = 'pgan_celeb_a_hq_generator',
@@ -34,13 +34,13 @@ def generator_paper(
         noise_dim: dimensionality of noise vector to project generated images from
         stop_stage: the stage of the generator; output will be (2**stop_stage, 2**stop_stage, 3)
         epsilon: small constant for numerical stability in PixelNormalization
+        leaky_alpha: alpha for LeakyReLU configuration
         use_bias: whether or not layers should use biases or not
         use_weight_scaling: whether or not the weight scaling trick should be applied
         use_fused_scaling: whether or not the Conv2DTranspose should be used for UpSampling2D images
         use_alpha_smoothing: whether or not layer new stages should be linearly interpolated into the current model
         return_all_outputs: whether or not all image outputs (including previous stages) should be connected to the
             output. By default only the current stage image (stop_stage) is returned.
-        leaky_alpha: alpha for LeakyReLU configuration
         use_noise_normalization: whether or not the noise vector should be pixel_normalized
         num_features: mapping of stage to features; all Convolutions will output num_features[stage] at stage
         name: name of keras model
@@ -158,11 +158,11 @@ def discriminator_paper(
         input_shape: optional input_shape without batch_dimension. Defaults to (2**stop_stage, 2**stop_stage, 3)
         stop_stage: the stage of the discriminator; output will be (1,)
         epsilon: small constant for numerical stability in StandardDeviation Layer
+        leaky_alpha: alpha for LeakyReLU configuration
         use_bias: whether or not layers should use biases or not
         use_weight_scaling: whether or not the weight scaling trick should be applied
         use_fused_scaling: whether or not the Conv2D strides should be used for DownSampling2D images
         use_alpha_smoothing: whether or not layer new stages should be linearly interpolated into the current model
-        leaky_alpha: alpha for LeakyReLU configuration
         num_features: mapping of stage to features; all Convolutions will output num_features[stage] at stage
         name: name of keras model
         **kwargs: unused
