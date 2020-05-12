@@ -67,7 +67,7 @@ def save_eval_images(
         output_dir: Union[str, bytes, os.PathLike],
         alpha: tf.Tensor,
         stage: int = 0,
-        data_format: str = "channel_last") -> None:
+        data_format: str = "channels_last") -> None:
     """Inferences twice through generator and stores a png-image consisting of two rows. First row consists of images 
     generated via static_noise; second row consists of images rolled randomly. Images are stored in output_dir.
 
@@ -84,10 +84,10 @@ def save_eval_images(
         ValueError: if data_format is not of appropriate value
         IndexError: if generator does not have output for depicted stage
     """
-    if data_format not in ['NCHW', 'NHWC', 'channel_first', 'channel_last']:
+    if data_format not in ['NCHW', 'NHWC', 'channels_first', 'channels_last']:
         raise ValueError(f'undefined data_format={data_format}')
     noise_shape = tf.shape(static_noise)
-    channel_axis = -1 if data_format == 'NHWC' or data_format == 'channel_last' else 1
+    channel_axis = -1 if data_format == 'NHWC' or data_format == 'channels_last' else 1
 
     # inference on generator to get images
     if len(generator.outputs) == 1:  # generator only has output for current stage
@@ -106,7 +106,7 @@ def save_eval_images(
     fixed_predictions.astype(dtype=np.uint8, copy=False)
     rand_predictions.astype(dtype=np.uint8, copy=False)
 
-    # get output dims, swap axes in case of channel_first
+    # get output dims, swap axes in case of channels_first
     if channel_axis == -1:
         num_images, height, width, channels = fixed_predictions.shape
     else:
