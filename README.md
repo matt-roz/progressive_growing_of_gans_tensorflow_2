@@ -31,7 +31,7 @@ The original TensorFlow 1 repository took roughly 2 weeks of traintime for a 102
 ### Differences to the original TensorFlow 1 contribution
 
 This repository, in its default configuration [`config.py`](config.py), differs from its original contribution in the following ways:
-* The original contribution linearly increases `alpha` (image smoothing factor) over 800k images. This repository increases `alpha` linearly over 810k images.
+* The original contribution linearly increases `alpha` (*image smoothing* scalar for linear interpolation) over 800k images. This repository increases `alpha` linearly over 810k images.
 * The original contribution trains each stage > 2 for 1.6M images. This repository trains each stage for 1.62M images.
 * The original contribution trains stage 2 for 800k images. This repository trains stage 2 for 1.62M images.
 * The original contribution [resets optimizer states](https://github.com/tkarras/progressive_growing_of_gans/blob/master/tfutil.py#L375) after each stage increase. This repository re-initializes its optimizers.
