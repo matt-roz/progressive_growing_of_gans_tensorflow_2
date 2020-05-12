@@ -113,6 +113,7 @@ The following options are configurable via [`config.py`](config.py). This config
 | resolution | uint | 256 | final resolution |
 | noise_dim | uint | 512 | noise_dim generator projects from |
 | epsilon | float | 1e-8 | small constant for numerical stability in model layers |
+| data_format | str | 'channels_last' | defines order of dimensions for images |
 | use_bias | bool | True | de-/activates usage of biases in all trainable layers |
 | use_stages | bool | True | de-/activates progressive training of model in stages |
 | use_fused_scaling | bool | True | de-/activates up- and downsampling of images via strides=(2, 2) in Conv2D and Conv2DTranspose |
