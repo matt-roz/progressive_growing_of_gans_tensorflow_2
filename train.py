@@ -301,13 +301,13 @@ def train():
 
         # all workers check for stage increase
         if (epoch + 1) % conf.train.epochs_per_stage == 0 and current_stage < conf.model.final_stage:
-            # increment stages, log progress
-            current_stage += 1
+            # log progress, increment stage
             current_time = time.time()
             stage_duration = str(timedelta(seconds=current_time - stage_start_time))
             train_duration = str(timedelta(seconds=current_time - train_start_time))
             logging.info(f"Completed stage={current_stage} in {stage_duration}, total_train_time={train_duration}")
             stage_start_time = current_time
+            current_stage += 1
 
             # get dataset pipeline for new images, instantiate next stage models, get new optimizers
             _gen, _dis, train_dataset, optimizer_gen, optimizer_dis = instantiate_stage_objects(current_stage)
