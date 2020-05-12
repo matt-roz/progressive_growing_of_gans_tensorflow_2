@@ -31,16 +31,16 @@ The original TensorFlow 1 repository took roughly 2 weeks of traintime for a 102
 #### Differences to the original TensorFlow 1 contribution
 
 This repository, in its default configuration [`config.py`](config.py), differs from its original contribution in the following ways:
-* The original contribution linearly increases `alpha` (image smoothing factor) linearly over 800k images. This repository increases `alpha` over 810k images.
-* The original contribution trains each stage (except stage 2 with 4x4x3) for 1.6M images. This repository trains each stage for 1.62M images.
-* The original contribution trains the first stage (stage 2 with 4x4x3) for 800k images. This repository trains stage 2 for 1.62M images.
-* The original contribution [resets optimizer states](https://github.com/tkarras/progressive_growing_of_gans/blob/master/tfutil.py#L375) after each stage increase. This repository re-initializes its optimizers for each new stage.
-* The original contribution allows for configurable [discriminator repeats](https://github.com/tkarras/progressive_growing_of_gans/blob/master/train.py#L228). This repository has no configurable discriminator repeats within its train_step.
+* The original contribution linearly increases `alpha` (image smoothing factor) over 800k images. This repository increases `alpha` linearly over 810k images.
+* The original contribution trains each stage (except stage 2) for 1.6M images. This repository trains each stage for 1.62M images.
+* The original contribution trains the first stage for 800k images. This repository trains stage 2 for 1.62M images.
+* The original contribution [resets optimizer states](https://github.com/tkarras/progressive_growing_of_gans/blob/master/tfutil.py#L375) after each stage increase. This repository re-initializes its optimizers.
+* The original contribution allows for configurable [discriminator repeats](https://github.com/tkarras/progressive_growing_of_gans/blob/master/train.py#L228). This repository has no discriminator repeats.
 * The original contribution has an optional [label input](https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L146) and computes [label loss penalties](https://github.com/tkarras/progressive_growing_of_gans/blob/master/loss.py#L35), if labels are given. This repository doesn't support labels.
-* The original contribution [`alpha` smooths (linearly interpolates)](https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L214) all intermediate image outputs within its models. This repository only [linearly interpolates the image of the last block of the current stage](https://github.com/matt-roz/progressive_growing_of_gans_tensorflow_2/blob/master/model.py#L127), since only the last image is used for training.
+* The original contribution [`alpha` smooths (linearly interpolates)](https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L214) all intermediate image outputs within its models. This repository only [linearly interpolates the image of the last block of the current stage](https://github.com/matt-roz/progressive_growing_of_gans_tensorflow_2/blob/master/model.py#L127).
 * The original contribution provides a [recursive](https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L217) network definition. This repository builds its models linearly. 
 
-I am certain there are more differences, but these are the major ones. Let me know if you spot any other major discrepancies.
+I am certain there are more differences, but these are the major ones I could think of. Let me know if you spot any other major discrepancies.
 
 ---
 ### System requirements
