@@ -8,6 +8,7 @@ Please cite the original authors and their work (**not** this repository):
 
 [Paper (arXiv)](http://arxiv.org/abs/1710.10196) <br>
 [TensorFlow 1 Implementation (github)](https://github.com/tkarras/progressive_growing_of_gans)
+
 ---
 ### Overview
 The repository at hand was written to get myself more comfortable and familiar with TensorFlow 2. It aims to provide a maintainable and well-written implementation of Progressive GANs in TensorFlow 2. It follows the best practices for **distributed computing with custom training loops and dynamic models** according to [TensorFlow's API](https://www.tensorflow.org/api_docs/python/). This repository aims to use the *highest level API* available in TensorFlow 2 for each building block (dataset, model, layer, etc.):
