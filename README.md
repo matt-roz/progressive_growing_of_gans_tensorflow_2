@@ -23,25 +23,46 @@ The repository at hand was written to get myself more comfortable and familiar w
   * subclassing [`Wrapper`](https://www.tensorflow.org/api_docs/python/tf/keras/layers/Wrapper) to realize the *weight scaling trick* for any `tf.keras.layers.Layer` as proposed in the original paper
 * [`tf.distribute.Strategy`](https://www.tensorflow.org/api_docs/python/tf/distribute/Strategy): allowing the same code base to be run executed with different distribution stratgies **without** code repetition (`DefaultStrategy`, [`MirroredStrategy`](https://www.tensorflow.org/api_docs/python/tf/distribute/MirroredStrategy), [`MultiWorkerMirroredStrategy`](https://www.tensorflow.org/api_docs/python/tf/distribute/experimental/MultiWorkerMirroredStrategy))
 
-The original TensorFlow 1 repository took roughly 2 weeks of traintime for a 1024x1024x3 network on a single V100. This repository takes 5 days, 11hrs for the same network on a Quadro RTX 6000. Here are some 256x256x3 interpolation results:
+The original TensorFlow 1 repository took roughly 2 weeks of traintime for a 1024x1024x3 network on a single V100. This repository takes 5 days, 11hrs for the same network on a Quadro RTX 6000. Here are three 256x256x3 interpolation results:
 
 ![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif)
+
+---
+#### Differences to the original TensorFlow 1 contribution
+
+This repository, in its default configuration [`config.py`](config.py), differs from its original contribution in the following ways:
+* The original contribution linearly increases `alpha` (image smoothing factor) linearly over 800k images. This repository increases `alpha` over 810k images.
+* The original contribution trains each stage (except stage 2 with 4x4x3) for 1.6M images. This repository trains each stage for 1.62M images.
+* The original contribution trains the first stage (stage 2 with 4x4x3) for 800k images. This repository trains stage 2 for 1.62M images.
+* The original contribution [resets optimizer states](https://github.com/tkarras/progressive_growing_of_gans/blob/master/tfutil.py#L375) after each stage increase. This repository re-initializes its optimizers for each new stage.
+* The original contribution allows for configurable [discriminator repeats](https://github.com/tkarras/progressive_growing_of_gans/blob/master/train.py#L228). This repository has no configurable discriminator repeats within its train_step.
+* The original contribution has an optional [label input](https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L146) and computes [label loss penalties](https://github.com/tkarras/progressive_growing_of_gans/blob/master/loss.py#L35), if labels are given. This repository doesn't support labels.
+* The original contribution [`alpha` smooths (linearly interpolates)](https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L214) all intermediate image outputs within its models. This repository only [linearly interpolates the image of the last block of the current stage](https://github.com/matt-roz/progressive_growing_of_gans_tensorflow_2/blob/master/model.py#L127), since only the last image is used for training.
+* The original contribution provides a [recursive](https://github.com/tkarras/progressive_growing_of_gans/blob/master/networks.py#L217) network definition. This repository builds its models linearly. 
+
+I am certain there are more differences, but these are the major ones. Let me know if you spot any other major discrepancies.
 
 ---
 ### System requirements
 * Linux with 64-bit Python 3.6 and `python-pydot`, `python-pydotplus` installed (see installation)
 * 16GB system memory and one or more high-end NVIDIA Turing, Pascal or Volta GPUs with 16GB of DRAM. 
 * NVIDIA driver 440.64.00 or newer, CUDA toolkit 10.1 or newer, cudNN 7.6.5 or newer
-   * Disclaimer: It's likely possible to run this repository on older software installations (specifically if you are willing to run pre tensorflow 2.1.0).  
+   * Disclaimer: It's likely possible to run this repository on older software installations (specifically if you are willing to run pre tensorflow 2.1.0). If you are going down this road some manual adaptions are likely required :-/
 
 ---
-### Installation
+### Installation & Training
+Personally I use virtualenv, but you can use conda, docker or any other type of virtualenv/containerization technique that floats your boat. Make sure system requires the requirements mentioned above.
+
+Install required packages:
+
+    sudo apt-get install python-pydot python-pydotplus
+    
 Clone the repository:
 
     git clone git@github.com:matt-roz/progressive_growing_of_gans_tensorflow_2.git
     cd progressive_growing_of_gans_tensorflow_2
     
-As an environment I recommend virtualenv: 
+Setup your environment: 
     
     sudo apt-get install python3-venv
     python3 -m venv venv
@@ -49,9 +70,15 @@ As an environment I recommend virtualenv:
     pip install --upgrade pip setuptools
     pip install -r requirements.txt
 
-Required packages:
+Adapt the configuration to for your system (specifically `data_dir`, `log_dir` and `out_dir` paths):
 
-    sudo apt-get install python-pydot python-pydotplus
+    nano config.py
+
+Train Progressive GANs:
+
+    python main.py
+    
+You'll see the project logfile and the TensorBoard logfile in `log_dir`; model checkpoints as well as eval images will be stored in `out_dir`. If you want to train on a cluster (strategy = `'multimirrored'`), make sure that your environment variable `$TF_CONFIG` is correctly configured for each node. This repository defines the worker at index 0 as its chief.
 
 ---
 ### Configuration
@@ -152,8 +179,10 @@ The following options are configurable via [`config.py`](config.py). This config
 
 ---
 ### Roadmap
-The following features are planned for the near future. PRs are welcome!
+The following features are planned for the near future.
 
+- [ ] add mixed_precision (fp16) training
+  - [ ] make models [`model.py`](model.py) dtype aware
 - [ ] support for NCHW (channel_first) data format
   - [x] make custom layers [`layers.py`](layers.py) data_format aware
   - [ ] make models [`model.py`](model.py) data_format aware
@@ -166,6 +195,8 @@ The following features are planned for the near future. PRs are welcome!
   - [ ] MS-SIM
   - [ ] FID
   - [ ] R&R
+
+PRs are very welcome and appreciated!
 
 ---
 ### Personal Note
