@@ -55,7 +55,7 @@ Personally I use virtualenv, but you can use conda, docker or any other type of 
 
 Install required packages:
 
-    sudo apt-get install python-pydot python-pydotplus
+    sudo apt-get install python3-pydot python3-pydotplus python3-venv
     
 Clone the repository:
 
@@ -64,25 +64,25 @@ Clone the repository:
     
 Setup your environment: 
     
-    sudo apt-get install python3-venv
     python3 -m venv venv
     source ven/bin/activate
     pip install --upgrade pip setuptools
     pip install -r requirements.txt
 
-Adapt the configuration to for your system (specifically `data_dir`, `log_dir` and `out_dir` paths):
+Adapt the configuration for your system (specifically `data_dir`, `log_dir` and `out_dir` paths):
 
     nano config.py
 
-Train Progressive GANs:
+Train Progressive-GANs:
 
     python main.py
     
-You'll see the project logfile and the TensorBoard logfile in `log_dir`; model checkpoints as well as eval images will be stored in `out_dir`. If you want to train on a cluster (strategy = `'multimirrored'`), make sure that your environment variable `$TF_CONFIG` is correctly configured for each node. This repository defines the worker at index 0 as its chief.
+You'll see the project logfile and the TensorBoard logfile in `log_dir`; model checkpoints as well as eval images will be stored in `out_dir`. 
 
 ---
 ### Configuration
 The following options are configurable via [`config.py`](config.py). This config file is backed up for each run in its respective output directory. By default the configuration will train a 256x256x3 network for CelebA-HQ using a single GPU (index 0 GPU). 
+
 <details><summary>Global Settings</summary>
 
 | identifier | dtype | default | meaning |
@@ -99,6 +99,8 @@ The following options are configurable via [`config.py`](config.py). This config
 | checkpoint_freq | uint | 54 | epoch frequency to checkpoint models with (0 = disabled) |
 | eval_freq | uint | 1 | epoch frequency to evaluate models with (0 = disabled) |
 | log_freq | uint | 1 | epoch frequency to log with (0 = disabled) |
+
+**Note:** If you want to train on a cluster (strategy = `'multimirrored'`), make sure that your environment variable `$TF_CONFIG` is correctly configured for each node. This repository defines the worker at index 0 as its chief. The chief will handle all file outputs (make sure he has the necessary rights to write within the defined output directories).
 
 </details>
 
