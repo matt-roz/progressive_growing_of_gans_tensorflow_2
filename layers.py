@@ -8,7 +8,7 @@ from tensorflow.python.framework import tensor_shape
 
 from utils import he_kernel_initializer, he_initializer_scale
 
-_channel_choices = ['NHWC', 'NCHW', 'channel_last', 'channel_first']
+_channel_choices = ['NHWC', 'NCHW', 'channels_last', 'channels_first']
 
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -36,7 +36,7 @@ class PixelNormalization(tf.keras.layers.Layer):
         TypeError: if epsilon is not of type float
         ValueError: if data_format is invalid
     """
-    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', **kwargs):
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channels_last', **kwargs):
         if not isinstance(epsilon, float):
             raise TypeError(f"epsilon must be of type {float} but found {type(epsilon)} instead")
         if data_format not in _channel_choices:
@@ -44,7 +44,7 @@ class PixelNormalization(tf.keras.layers.Layer):
         super().__init__(**kwargs)
         self.epsilon = epsilon
         self.data_format = data_format
-        self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channel_last' else 1
+        self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channels_last' else 1
 
     def call(self, inputs, **kwarg):
         scale = tf.math.rsqrt(tf.reduce_mean(tf.square(inputs), axis=self.channel_axis, keepdims=True) + self.epsilon)
@@ -81,7 +81,7 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         TypeError: if epsilon is not of type float
         ValueError: if data_format is invalid
     """
-    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channel_last', **kwargs):
+    def __init__(self, epsilon: float = 1e-8, data_format: str = 'channels_last', **kwargs):
         if not isinstance(epsilon, float):
             raise TypeError(f"epsilon must be of type {float} but found {type(epsilon)} instead")
         if data_format not in _channel_choices:
@@ -89,7 +89,7 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         super(StandardDeviationLayer, self).__init__(**kwargs)
         self.epsilon = epsilon
         self.data_format = data_format
-        self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channel_last' else 1
+        self.channel_axis = -1 if self.data_format == 'NHWC' or self.data_format == 'channels_last' else 1
 
     def call(self, inputs, **kwargs):
         mean = tf.reduce_mean(inputs, axis=0, keepdims=True)
