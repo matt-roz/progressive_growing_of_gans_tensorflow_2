@@ -2,7 +2,7 @@ import os
 import gc
 import time
 import logging
-from typing import Tuple
+from typing import Tuple, Union
 from datetime import timedelta
 
 import numpy as np
@@ -37,7 +37,7 @@ train_step_fn = None
 
 def replica_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> tf.Tensor:
     """Trains Progressive GAN for one batch in replica context. Loss functions used in this context must return per
-     examples losses and must be scaled to global_batch_size.
+     examples losses and are afterwards scaled by global_batch_size.
 
     Args:
         batch: a 4D-Tensor containing the images to train with. First dimension depicts per replica batch_size.
@@ -80,6 +80,7 @@ def replica_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> tf.Tensor:
         _disc_loss = tf.nn.compute_average_loss(_disc_loss, global_batch_size=global_batch_size)
         disc_stacked_loss = tf.stack((_disc_loss, disc_gradient_loss, disc_epsilon_loss))
         disc_loss = tf.reduce_sum(disc_stacked_loss)
+
     # collocate gradients from tapes
     gradients_generator = generator_tape.gradient(gen_loss, generator.trainable_variables)
     gradients_discriminator = discriminator_tape.gradient(disc_loss, discriminator.trainable_variables)
@@ -89,7 +90,7 @@ def replica_train_step(batch: tf.Tensor, alpha: tf.Tensor) -> tf.Tensor:
     return tf.stack((gen_loss, _disc_loss, disc_gradient_loss, disc_epsilon_loss))
 
 
-def global_train_step(batch: Tuple[tf.Tensor, CompositeTensor], alpha: tf.Tensor) -> Tuple[tf.Tensor, tf.Tensor]:
+def global_train_step(batch: Union[tf.Tensor, CompositeTensor], alpha: tf.Tensor) -> tf.Tensor:
     """Trains Progressive GAN for one batch over all replicas. Losses are reduced over all replicas with reduce_sum.
     This function expects all replica losses to be scaled with global_batch_size.
 
