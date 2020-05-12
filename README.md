@@ -71,7 +71,7 @@ The following options are configurable via [`config.py`](config.py). This config
 | train_eagerly | bool | False | de-/activates execution of train_step in graph mode |
 | XLA | bool | False | de-/activates XLA JIT compilation for train_step |
 | strategy | str | 'default' | distribution strategy |
-| checkpoint_freq | 54 | epoch frequency to checkpoint models with (0 = disabled) |
+| checkpoint_freq | uint | 54 | epoch frequency to checkpoint models with (0 = disabled) |
 | eval_freq | uint | 1 | epoch frequency to evaluate models with (0 = disabled) |
 | log_freq | uint | 1 | epoch frequency to log with (0 = disabled) |
 
