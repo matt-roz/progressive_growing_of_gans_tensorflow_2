@@ -8,10 +8,9 @@ Please cite the original authors and their work (**not** this repository):
 
 [Paper (arXiv)](http://arxiv.org/abs/1710.10196) <br>
 [TensorFlow 1 Implementation (github)](https://github.com/tkarras/progressive_growing_of_gans)
-
-#### Overview
-
-The repository at hand was written to get myself more comfortable and familiar with TensorFlow 2. It aims to provide a maintainable and (hopefully) well-written implementation of Progressive GANs in TensorFlow 2. It follows the best practices for **distributed computing with custom training loops and dynamic models** according to [TensorFlow's API](https://www.tensorflow.org/api_docs/python/). This repository aims to use the *highest level API* available in TensorFlow 2 for each building block (dataset, model, layer, etc.):
+---
+### Overview
+The repository at hand was written to get myself more comfortable and familiar with TensorFlow 2. It aims to provide a maintainable and well-written implementation of Progressive GANs in TensorFlow 2. It follows the best practices for **distributed computing with custom training loops and dynamic models** according to [TensorFlow's API](https://www.tensorflow.org/api_docs/python/). This repository aims to use the *highest level API* available in TensorFlow 2 for each building block (dataset, model, layer, etc.):
 
 * [`tf.data.Dataset`](https://www.tensorflow.org/api_docs/python/tf/data/Dataset): a `celeb_a_hq` pipeline built via [tensorflow_datasets](https://www.tensorflow.org/datasets)
 * [`tf.keras.Model`](https://www.tensorflow.org/api_docs/python/tf/keras/Model): functional API implementations of models (for shape inference at `model.build()` time)
@@ -23,22 +22,19 @@ The repository at hand was written to get myself more comfortable and familiar w
   * subclassing [`Wrapper`](https://www.tensorflow.org/api_docs/python/tf/keras/layers/Wrapper) to realize the *weight scaling trick* for any `tf.keras.layers.Layer` as proposed in the original paper
 * [`tf.distribute.Strategy`](https://www.tensorflow.org/api_docs/python/tf/distribute/Strategy): allowing the same code base to be run executed with different distribution stratgies **without** code repetition (`DefaultStrategy`, [`MirroredStrategy`](https://www.tensorflow.org/api_docs/python/tf/distribute/MirroredStrategy), [`MultiWorkerMirroredStrategy`](https://www.tensorflow.org/api_docs/python/tf/distribute/experimental/MultiWorkerMirroredStrategy))
 
-Additionally this repository aims to provide:
-
-* **Documentation**: fully documented in [Google Style Python Docstrings](https://sphinxcontrib-napoleon.readthedocs.io/en/latest/example_google.html)
-* **Readability**: written *for the reader* to be easily understandable and allowing long-term maintainability
-* **Configurability**: adaptable via [`config.py`](config.py)
+The original TensorFlow 1 repository took roughly 2 weeks of traintime for a 1024x1024x3 network on a single V100. This repository takes 5 days, 11hrs for the same network on a Quadro RTX 6000. Here are some 256x256x3 interpolation results:
 
 ![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif)
 
-#### System requirements
-
+---
+### System requirements
 * Linux with 64-bit Python 3.6 and `python-pydot`, `python-pydotplus` installed (see installation)
 * 16GB system memory and one or more high-end NVIDIA Turing, Pascal or Volta GPUs with 16GB of DRAM. 
 * NVIDIA driver 440.64.00 or newer, CUDA toolkit 10.1 or newer, cudNN 7.6.5 or newer
    * Disclaimer: It's likely possible to run this repository on older software installations (specifically if you are willing to run pre tensorflow 2.1.0).  
 
-#### Installation
+---
+### Installation
 Clone the repository:
 
     git clone git@github.com:matt-roz/progressive_growing_of_gans_tensorflow_2.git
@@ -56,7 +52,8 @@ Required packages:
 
     sudo apt-get install python-pydot python-pydotplus
 
-#### Configuration
+---
+### Configuration
 The following options are configurable via [`config.py`](config.py). This config file is backed up for each run in its respective output directory. By default the configuration will train a 256x256x3 network for CelebA-HQ using a single GPU (index 0 GPU). 
 <details><summary>Global Settings</summary>
 
@@ -152,7 +149,8 @@ The following options are configurable via [`config.py`](config.py). This config
 
 </details>
 
-#### Roadmap
+---
+### Roadmap
 The following features are planned for the near future. PRs are welcome!
 
 - [ ] support for NCHW (channel_first) data format
@@ -168,5 +166,6 @@ The following features are planned for the near future. PRs are welcome!
   - [ ] FID
   - [ ] R&R
 
-#### Personal Note
+---
+### Personal Note
 I am located in Germany and I am looking for opportunities world wide: `matthiasrozanski[at]gmail[dot]com`  
