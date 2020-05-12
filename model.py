@@ -1,3 +1,5 @@
+import gc
+import logging
 from typing import Optional, Dict, Sequence
 
 import numpy as np
@@ -6,6 +8,125 @@ from tensorflow.keras.layers import Conv2D, LeakyReLU, Dense, Reshape, UpSamplin
     AveragePooling2D
 
 from layers import PixelNormalization, StandardDeviationLayer, WeightScalingWrapper
+from losses import wasserstein_discriminator_loss, wasserstein_generator_loss, wasserstein_gradient_penalty, \
+    discriminator_epsilon_drift
+from utils import transfer_weights
+
+
+class ProgressiveGAN(tf.keras.Model):
+    def __init__(self,
+                 model_kwargs: dict,
+                 optimizer_kwargs: dict,
+                 replica_batch_sizes: dict,
+                 alpha_init: float = 0.0,
+                 alpha_step: float = 0.001,
+                 current_stage: int = 10,
+                 noise_dim: int = 512,
+                 wgan_lambda: float = 10.0,
+                 wgan_target: float = 1.0,
+                 drift_epsilon: float = 0.001,
+                 use_gradient_penalty: bool = True,
+                 use_epsilon_penalty: bool = True,
+                 **kwargs):
+        super().__init__(**kwargs)
+        self._model_kwargs = model_kwargs
+        self._optimizer_kwargs = optimizer_kwargs
+        self._replica_batch_sizes = replica_batch_sizes
+        self.current_stage = current_stage
+        self.alpha = 0
+        self.alpha_init = alpha_init
+        self.alpha_step = alpha_step
+        self.noise_dim = noise_dim
+        self.wgan_lambda = wgan_lambda
+        self.wgan_target = wgan_target
+        self.drift_epsilon = drift_epsilon
+        self.use_gradient_penalty = use_gradient_penalty
+        self.use_epsilon_penalty = use_epsilon_penalty
+        self.generator = self.discriminator = None
+
+    def compile(self):
+        self.optimizer_gen = tf.keras.optimizers.Adam(
+            learning_rate=self._optimizer_kwargs.learning_rates[self.current_stage],
+            beta_1=self._optimizer_kwargs.beta1,
+            beta_2=self._optimizer_kwargs.beta2,
+            epsilon=self._optimizer_kwargs.epsilon,
+            name='adam_generator')
+        self.optimizer_dis = tf.keras.optimizers.Adam(
+            learning_rate=self._optimizer_kwargs.learning_rates[self.current_stage],
+            beta_1=self._optimizer_kwargs.beta1,
+            beta_2=self._optimizer_kwargs.beta2,
+            epsilon=self._optimizer_kwargs.epsilon,
+            name='adam_discriminator')
+        self.alpha = self.alpha_init
+        self.ema = tf.train.ExponentialMovingAverage(decay=0.999)
+        generator = generator_paper(stop_stage=self.current_stage, name=f'generator_stage_{self.current_stage}', **self._model_kwargs)
+        discriminator = discriminator_paper(stop_stage=self.current_stage, name=f'discriminator_stage_{self.current_stage}', **self._model_kwargs)
+
+        if self.generator is not None and self.discriminator is not None:
+            transfer_weights(source_model=self.generator, target_model=generator, beta=0.0)
+            transfer_weights(source_model=self.discriminator, target_model=discriminator, beta=0.0)
+
+            del self.generator
+            del self.discriminator
+            gc.collect()  # note: this only cleans the python runtime not keras/tensorflow backend nor GPU memory
+
+        self.generator = generator
+        self.discriminator = discriminator
+
+        self.ema.apply(self.generator.variables)
+        super().compile()
+
+    @property
+    def global_batch_size(self) -> int:
+        return self.distribute_strategy.num_replicas_in_sync * self._replica_batch_sizes[self.current_stage]
+
+    def train_step(self, data):
+        # generate noise for projecting fake images
+        if not self.run_eagerly:
+            logging.info(f'tf.function tracing train_step: data={data}')
+        batch = data
+        replica_batch_size = tf.shape(batch)[0]
+        noise = tf.random.normal([replica_batch_size, self.noise_dim])
+
+        with tf.GradientTape() as generator_tape, tf.GradientTape() as discriminator_tape:
+            # forward pass: inference through both models on tape to create predictions
+            fake_images = self.generator([noise, self.alpha], training=True)
+            real_image_guesses = self.discriminator([batch, self.alpha], training=True)
+            fake_image_guesses = self.discriminator([fake_images, self.alpha], training=True)
+
+            # compute gradient penalty
+            if self.use_gradient_penalty:
+                disc_gradient_loss = wasserstein_gradient_penalty(self.discriminator, batch, fake_images, self.wgan_target, self.wgan_lambda, self.alpha)
+                disc_gradient_loss = tf.nn.compute_average_loss(disc_gradient_loss, global_batch_size=self.global_batch_size)
+            else:
+                disc_gradient_loss = 0.0
+
+            # compute drift penalty
+            if self.use_epsilon_penalty:
+                disc_epsilon_loss = discriminator_epsilon_drift(real_image_guesses, self.drift_epsilon)
+                disc_epsilon_loss = tf.nn.compute_average_loss(disc_epsilon_loss, global_batch_size=self.global_batch_size)
+            else:
+                disc_epsilon_loss = 0.0
+
+            # calculate losses
+            gen_loss = wasserstein_generator_loss(fake_image_guesses)
+            gen_loss = tf.nn.compute_average_loss(gen_loss, global_batch_size=self.global_batch_size)
+            _disc_loss = wasserstein_discriminator_loss(real_image_guesses, fake_image_guesses)
+            _disc_loss = tf.nn.compute_average_loss(_disc_loss, global_batch_size=self.global_batch_size)
+            disc_stacked_loss = tf.stack((_disc_loss, disc_gradient_loss, disc_epsilon_loss))
+            disc_loss = tf.reduce_sum(disc_stacked_loss)
+
+        # collocate gradients from tapes
+        gradients_generator = generator_tape.gradient(gen_loss, self.generator.trainable_variables)
+        gradients_discriminator = discriminator_tape.gradient(disc_loss, self.discriminator.trainable_variables)
+        # backward pass: apply gradients via optimizers to update models
+        self.optimizer_gen.apply_gradients(zip(gradients_generator, self.generator.trainable_variables))
+        self.optimizer_dis.apply_gradients(zip(gradients_discriminator, self.discriminator.trainable_variables))
+
+        # increment alpha
+        # self.alpha.assign(tf.minimum(self.alpha + self.alpha_step * self.global_batch_size, 1.0))
+        self.ema.apply(self.generator.variables)
+        return {'gen_loss': gen_loss, 'disc_loss': disc_loss, 'wgan_disc_loss': _disc_loss, 'gradient_loss': disc_gradient_loss, 'epsilon_loss': disc_epsilon_loss}
 
 
 def generator_paper(
