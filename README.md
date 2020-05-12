@@ -28,7 +28,7 @@ The original TensorFlow 1 repository took roughly 2 weeks of traintime for a 102
 ![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif)
 
 ---
-#### Differences to the original TensorFlow 1 contribution
+### Differences to the original TensorFlow 1 contribution
 
 This repository, in its default configuration [`config.py`](config.py), differs from its original contribution in the following ways:
 * The original contribution linearly increases `alpha` (image smoothing factor) over 800k images. This repository increases `alpha` linearly over 810k images.
@@ -51,7 +51,7 @@ I am certain there are more differences, but these are the major ones I could th
 
 ---
 ### Installation & Training
-Personally I use virtualenv, but you can use conda, docker or any other type of virtualenv/containerization technique that floats your boat. Make sure system requires the requirements mentioned above.
+Personally I use virtualenv, but you can use conda, docker or any other type of virtualenv/containerization technique that floats your boat. Make sure the system requirements mentioned above are met.
 
 Install required packages:
 
