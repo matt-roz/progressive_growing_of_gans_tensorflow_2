@@ -33,6 +33,8 @@ if __name__ == '__main__':
         conf.general.nnodes = len(tf_config['cluster']['worker'])
         conf.general.is_chief = tf_config['task']['index'] == 0
         conf.general.is_cluster = True
+    else:
+        raise RuntimeError(f"strategy must be one of {['default', 'mirrored', 'multimirrored']} but found {conf.general.strategy} instead.")
 
     # store certain attributes in configs that are only determined at runtime
     conf.model.final_stage = int(math.log2(conf.model.resolution))
