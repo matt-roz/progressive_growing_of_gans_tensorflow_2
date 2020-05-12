@@ -29,7 +29,7 @@ Additionally this repository aims to provide:
 * **Readability**: written *for the reader* to be easily understandable and allowing long-term maintainability
 * **Configurability**: adaptable via [`config.py`](config.py)
 
-<!-- ![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif) -->
+![Example Gif](res/inter3.gif) ![Example Gif](res/inter2.gif) ![Example Gif](res/inter1.gif)
 
 #### System requirements
 
