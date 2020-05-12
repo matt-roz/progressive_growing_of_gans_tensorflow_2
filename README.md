@@ -169,4 +169,6 @@ The following features are planned for the near future. PRs are welcome!
 
 ---
 ### Personal Note
-I am located in Germany and I am looking for opportunities world wide: `matthiasrozanski[at]gmail[dot]com`  
+Located in Germany, passionate about ML and looking for opportunities world wide: `matthiasrozanski[at]gmail[dot]com` 
+
+If you are looking for additions to your (research/engineering) team: Don't hesitate reaching out - I ain't biting :)
