@@ -286,8 +286,8 @@ def train():
         # chief saves eval images
         if conf.general.is_chief and conf.general.evaluate and conf.general.eval_freq and (epoch + 1) % conf.general.eval_freq == 0:
             n = np.minimum(replica_batch_size, len(random_noise))  # else some GPUs might OOM for large resolutions
-            save_eval_images(random_noise[:n], generator, epoch, conf.general.out_dir, tf.constant(conf.model.alpha))
-            save_eval_images(random_noise[:n], final_gen, epoch, conf.general.out_dir, tf.constant(1.0), current_stage)
+            save_eval_images(random_noise[:n], generator, epoch, conf.general.out_dir, tf.constant(conf.model.alpha), data_format=conf.model.data_format)
+            save_eval_images(random_noise[:n], final_gen, epoch, conf.general.out_dir, tf.constant(1.0), current_stage, data_format=conf.model.data_format)
 
         # chief saves model checkpoints
         if conf.general.is_chief and conf.general.save and conf.general.checkpoint_freq and (epoch + 1) % conf.general.checkpoint_freq == 0:

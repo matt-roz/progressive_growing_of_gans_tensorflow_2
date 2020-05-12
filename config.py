@@ -47,6 +47,7 @@ model_config.generator_ema              = 0.999     # float: exponential moving 
 model_config.resolution                 = 256       # uint: final resolution in [4, 8, 16, 32, 64, 128, 256, 512, 1024]
 model_config.noise_dim                  = 512       # uint: noise_dim generator projects from
 model_config.epsilon                    = 1e-8      # float: small constant for numerical stability in PixelNormalization as well as StandardDeviation Layer
+model_config.data_format                = 'channels_last'  # str: order of dimensions for images
 model_config.use_bias                   = True      # bool: de-/activates usage of biases in all trainable layers
 model_config.use_stages                 = True      # bool: de-/activates progressive training of model in stages (if deactivated only last stage for final resolution is trained)
 model_config.use_fused_scaling          = True      # bool: de-/activates up- and downsampling of images via strides=(2, 2) in Conv2D and Conv2DTranspose (else UpSampling2D and AveragePooling2D is used)
