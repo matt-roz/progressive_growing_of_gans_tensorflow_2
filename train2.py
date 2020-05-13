@@ -2,7 +2,6 @@ import os
 import gc
 import time
 import logging
-from typing import Optional
 from datetime import timedelta
 
 import numpy as np
