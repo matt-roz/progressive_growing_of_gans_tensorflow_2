@@ -12,8 +12,8 @@ from tensorflow.keras.utils import plot_model
 
 from config import conf
 from data import get_dataset_pipeline
-from model import generator_paper, discriminator_paper
-from utils import save_eval_images, transfer_weights
+from networks import generator_paper, discriminator_paper
+from utils import save_eval_images
 from losses import wasserstein_discriminator_loss, wasserstein_generator_loss, wasserstein_gradient_penalty, \
     discriminator_epsilon_drift
 
