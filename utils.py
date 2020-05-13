@@ -111,8 +111,8 @@ def save_eval_images(
         num_images, height, width, channels = fixed_predictions.shape
     else:
         num_images, channels, height, width = fixed_predictions.shape
-        fixed_predictions = fixed_predictions.swapaxes(1, -1)
-        rand_predictions = rand_predictions.swapaxes(1, -1)
+        fixed_predictions = np.einsum('nchw->nhwc', fixed_predictions)
+        rand_predictions = np.einsum('nchw->nhwc', rand_predictions)
 
     # output container for image, first column are fixed_random_seed pictures, second are not seeded-random
     predictions = np.empty(shape=[2 * height, num_images * width,  channels], dtype=np.uint8)

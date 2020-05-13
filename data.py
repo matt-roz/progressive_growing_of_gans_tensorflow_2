@@ -67,7 +67,7 @@ def celeb_a_hq_process_func(
         entry: Union[Dict[str, tf.Tensor], Sequence[tf.Tensor]],
         as_supervised: bool = False,
         mirror_augment: bool = True,
-        swap_channel_axes: bool = False) -> tf.Tensor:
+        swap_channel_axes: bool = True) -> tf.Tensor:
     """Transforms celeb_a_hq image from tf.uint8 with range [0, 255] to tf.float32 with range [-1, 1]. Randomly mirrors
     images vertically.
 
@@ -88,5 +88,5 @@ def celeb_a_hq_process_func(
     if mirror_augment:
         image = tf.image.random_flip_left_right(image)
     if swap_channel_axes:
-        image = tf.transpose(image, [2, 0, 1])
+        image = tf.einsum('hwc->chw', image)
     return image
