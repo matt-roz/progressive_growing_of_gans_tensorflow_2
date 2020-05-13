@@ -49,7 +49,7 @@ def get_dataset_pipeline(
     if process_func:
         dataset = dataset.map(map_func=process_func, num_parallel_calls=map_parallel_calls)
     if batch_size:
-        dataset = dataset.batch(batch_size=batch_size)
+        dataset = dataset.batch(batch_size=batch_size, drop_remainder=True)
     if caching:
         dataset = dataset.cache(filename=cache_file)
     if buffer_size:
