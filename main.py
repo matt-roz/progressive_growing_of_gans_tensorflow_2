@@ -15,12 +15,8 @@ if __name__ == '__main__':
     tf.debugging.set_log_device_placement(conf.log.device_placement)
 
     # set distribution strategy
-    if conf.general.strategy == 'default':
-        conf.general.strategy = tf.distribute.get_strategy()
-        conf.general.is_chief = True
-        conf.general.is_cluster = False
-        conf.general.nnodes = 1
-    elif conf.general.strategy == 'mirrored':
+    if conf.general.strategy == 'mirrored':
+        del os.environ['TF_CONFIG']
         conf.general.strategy = tf.distribute.MirroredStrategy()
         conf.general.is_chief = True
         conf.general.is_cluster = False
@@ -33,8 +29,16 @@ if __name__ == '__main__':
         conf.general.nnodes = len(tf_config['cluster']['worker'])
         conf.general.is_chief = tf_config['task']['index'] == 0
         conf.general.is_cluster = True
+    elif isinstance(conf.general.strategy, list):
+        del os.environ['TF_CONFIG']
+        conf.general.strategy = tf.distribute.MirroredStrategy(devices=conf.general.strategy)
+        conf.general.is_chief = True
+        conf.general.is_cluster = False
+        conf.general.nnodes = 1
     else:
-        raise RuntimeError(f"strategy must be one of {['default', 'mirrored', 'multimirrored']} but found {conf.general.strategy} instead.")
+        msg = "strategy must be either a device list or one of ['mirrored', 'multimirrored'] but found "
+        msg += f"{conf.general.strategy} instead"
+        raise RuntimeError(msg)
 
     # store certain attributes in configs that are only determined at runtime
     conf.model.final_stage = int(math.log2(conf.model.resolution))
