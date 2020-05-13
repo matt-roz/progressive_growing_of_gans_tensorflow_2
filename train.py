@@ -13,7 +13,7 @@ from tensorflow.python.framework.composite_tensor import CompositeTensor
 
 from config import conf
 from data import get_dataset_pipeline
-from model import generator_paper, discriminator_paper
+from networks import generator_paper, discriminator_paper
 from losses import wasserstein_discriminator_loss, wasserstein_generator_loss, discriminator_epsilon_drift, \
     wasserstein_gradient_penalty
 from utils import save_eval_images, transfer_weights
@@ -299,6 +299,12 @@ def train():
             discriminator.save(filepath=dis_file)
             final_gen.save(filepath=fin_file)
 
+        # update log files and tqdm status message
+        _str_duration = str(timedelta(seconds=epoch_duration))
+        status_message = f"duration={_str_duration}, gen_loss={gen_loss:.3f}, dis_loss={tf.reduce_sum(dis_loss):.3f}"
+        logging.info(f"Finished epoch-{epoch+1:04d} with {status_message}")
+        epochs.set_postfix_str(status_message)
+
         # all workers check for stage increase
         if (epoch + 1) % conf.train.epochs_per_stage == 0 and current_stage < conf.model.final_stage:
             # log progress, increment stage
@@ -341,12 +347,6 @@ def train():
             conf.model.alpha = conf.train.alpha_init
             epochs.set_description_str(f"Progressive-GAN(stage={current_stage}, shape={image_shape}")
             logging.info(f"Starting to train Stage {current_stage}")
-
-        # update log files and tqdm status message
-        _str_duration = str(timedelta(seconds=epoch_duration))
-        status_message = f"duration={_str_duration}, gen_loss={gen_loss:.3f}, dis_loss={tf.reduce_sum(dis_loss):.3f}"
-        logging.info(f"Finished epoch-{epoch+1:04d} with {status_message}")
-        epochs.set_postfix_str(status_message)
 
     # final
     current_time = time.time()
