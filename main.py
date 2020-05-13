@@ -16,7 +16,7 @@ if __name__ == '__main__':
 
     # set distribution strategy
     if conf.general.strategy == 'mirrored':
-        del os.environ['TF_CONFIG']
+        # del os.environ['TF_CONFIG']
         conf.general.strategy = tf.distribute.MirroredStrategy()
         conf.general.is_chief = True
         conf.general.is_cluster = False
@@ -30,7 +30,7 @@ if __name__ == '__main__':
         conf.general.is_chief = tf_config['task']['index'] == 0
         conf.general.is_cluster = True
     elif isinstance(conf.general.strategy, list):
-        del os.environ['TF_CONFIG']
+        # del os.environ['TF_CONFIG']
         conf.general.strategy = tf.distribute.MirroredStrategy(devices=conf.general.strategy)
         conf.general.is_chief = True
         conf.general.is_cluster = False
