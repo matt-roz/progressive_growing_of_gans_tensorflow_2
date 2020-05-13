@@ -33,7 +33,7 @@ class ProgressiveGAN(tf.keras.Model):
         self._optimizer_kwargs = optimizer_kwargs
         self._replica_batch_sizes = replica_batch_sizes
         self.current_stage = current_stage
-        self.alpha = 0
+        self.alpha = tf.Variable(alpha_init, trainable=False, dtype=tf.float32, name="model_alpha", synchronization=tf.VariableSynchronization.ON_WRITE, aggregation=tf.VariableAggregation.MEAN)
         self.alpha_init = alpha_init
         self.alpha_step = alpha_step
         self.noise_dim = noise_dim
@@ -42,9 +42,9 @@ class ProgressiveGAN(tf.keras.Model):
         self.drift_epsilon = drift_epsilon
         self.use_gradient_penalty = use_gradient_penalty
         self.use_epsilon_penalty = use_epsilon_penalty
-        self.generator = self.discriminator = None
+        self.generator = self.discriminator = self.optimizer_dis = self.optimizer_gen = self.ema = None
 
-    def compile(self):
+    def compile(self, **kwargs):
         self.optimizer_gen = tf.keras.optimizers.Adam(
             learning_rate=self._optimizer_kwargs.learning_rates[self.current_stage],
             beta_1=self._optimizer_kwargs.beta1,
@@ -57,7 +57,7 @@ class ProgressiveGAN(tf.keras.Model):
             beta_2=self._optimizer_kwargs.beta2,
             epsilon=self._optimizer_kwargs.epsilon,
             name='adam_discriminator')
-        self.alpha = self.alpha_init
+        self.alpha.assign(self.alpha_init)
         self.ema = tf.train.ExponentialMovingAverage(decay=0.999)
         generator = generator_paper(stop_stage=self.current_stage, name=f'generator_stage_{self.current_stage}', **self._model_kwargs)
         discriminator = discriminator_paper(stop_stage=self.current_stage, name=f'discriminator_stage_{self.current_stage}', **self._model_kwargs)
@@ -75,6 +75,11 @@ class ProgressiveGAN(tf.keras.Model):
 
         self.ema.apply(self.generator.variables)
         super().compile()
+
+    @property
+    def image_shape(self):
+        res = 2**self.current_stage
+        return (res, res, 3) if self._model_kwargs.data_format == 'channels_last' or self._model_kwargs.data_format == 'NHWC' else (3, res, res)
 
     @property
     def global_batch_size(self) -> int:
@@ -124,7 +129,7 @@ class ProgressiveGAN(tf.keras.Model):
         self.optimizer_dis.apply_gradients(zip(gradients_discriminator, self.discriminator.trainable_variables))
 
         # increment alpha
-        # self.alpha.assign(tf.minimum(self.alpha + self.alpha_step * self.global_batch_size, 1.0))
+        self.alpha.assign(tf.minimum(self.alpha + self.alpha_step * self.global_batch_size, 1.0))
         self.ema.apply(self.generator.variables)
         return {'gen_loss': gen_loss, 'disc_loss': disc_loss, 'wgan_disc_loss': _disc_loss, 'gradient_loss': disc_gradient_loss, 'epsilon_loss': disc_epsilon_loss}
 

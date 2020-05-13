@@ -133,7 +133,7 @@ def train():
                 tf.summary.scalar("losses/epoch/epsilon_penalty_disc", ret['epsilon_loss'], epoch)
                 tf.summary.scalar("losses/epoch/mixed_norms_disc", disc_gradient_mixed_norm, epoch)
                 tf.summary.scalar("model/epoch/current_stage", current_stage, epoch)
-                tf.summary.scalar("model/epoch/alpha", conf.model.alpha, epoch)
+                tf.summary.scalar("model/epoch/alpha", model.alpha, epoch)
                 tf.summary.scalar("model/epoch/global_batch_size", global_batch_size, epoch)
                 tf.summary.scalar("model/epoch/node_batch_size", num_replicas_per_node*replica_batch_size, epoch)
                 tf.summary.scalar("model/epoch/replica_batch_size", replica_batch_size, epoch)
