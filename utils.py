@@ -1,6 +1,6 @@
 import os
 import warnings
-from typing import Union, Tuple
+from typing import Union, Tuple, Optional
 
 import tensorflow as tf
 import numpy as np
@@ -130,6 +130,58 @@ def save_eval_images(
     del predictions
 
 
+def transfer_ema_weights(
+        source_model: tf.keras.Model,
+        target_model: tf.keras.Model,
+        source_ema: Optional[tf.train.ExponentialMovingAverage] = None,
+        layer_name_prefix: str = '') -> None:
+    """Transfer weights from source_model to target_model. If source_ema is specified, then the exponential moving
+    average in source_ema of each variable in source_model will be transferred to source_target.
+
+    Args:
+        source_model: the source to transfer weights from
+        target_model: the target to transfer weights to
+        source_ema: optional exponential moving average of source_model.variables
+        layer_name_prefix: only layers, which names start with layer_name_prefix, are transferred
+    """
+    for source_layer in source_model.layers:
+        source_vars = source_layer.variables
+        if source_layer.name.startswith(layer_name_prefix) and source_vars:
+            try:
+                target_layer = target_model.get_layer(name=source_layer.name)
+            except ValueError:
+                continue
+            for source_var, target_var in zip(source_vars, target_layer.variables):
+                if source_ema is not None:
+                    transfer_var = source_ema.average(source_var)
+                else:
+                    transfer_var = source_var
+                target_var.assign(transfer_var)
+
+
+def he_initializer_scale(kernel_shape, gain: float = 2.0):
+    """float: he_normal according to the original contribution https://arxiv.org/abs/1502.01852"""
+    fan_in = np.prod(kernel_shape[:-1])
+    return np.sqrt(gain / fan_in)
+
+
+# ----------------------------------------------------------------------------------------------------------------------
+# deprecated functions (kept for backwards compatibility for trained and serialized h5 models)
+# ----------------------------------------------------------------------------------------------------------------------
+
+def he_kernel_initializer(kernel_shape, gain: float = 2.0, use_weight_scaling: bool = True) \
+        -> Tuple[float, tf.initializers.Initializer]:
+    warnings.warn("he_kernel_initializer is deprecated. Use he_initializer_scale instead.", DeprecationWarning, 2)
+    he_scale = he_initializer_scale(kernel_shape=kernel_shape, gain=gain)
+    if use_weight_scaling:
+        op_scale = he_scale
+        kernel_initializer = tf.keras.initializers.RandomNormal()
+    else:
+        op_scale = 1.0
+        kernel_initializer = tf.keras.initializers.RandomNormal(0, he_scale)
+    return op_scale, kernel_initializer
+
+
 def transfer_weights(
         source_model: tf.keras.Model,
         target_model: tf.keras.Model,
@@ -175,26 +227,3 @@ def transfer_weights(
                 for source_var, target_var in zip(source_vars, target_layer.variables):
                     delta_value = (1 - beta) * (target_var - source_var)
                     target_var.assign_sub(delta_value)
-
-
-def he_initializer_scale(kernel_shape, gain: float = 2.0):
-    """float: he_normal according to the original contribution https://arxiv.org/abs/1502.01852"""
-    fan_in = np.prod(kernel_shape[:-1])
-    return np.sqrt(gain / fan_in)
-
-
-# ----------------------------------------------------------------------------------------------------------------------
-# deprecated functions (kept for backwards compatibility for trained and serialized h5 models)
-# ----------------------------------------------------------------------------------------------------------------------
-
-def he_kernel_initializer(kernel_shape, gain: float = 2.0, use_weight_scaling: bool = True) \
-        -> Tuple[float, tf.initializers.Initializer]:
-    warnings.warn("he_kernel_initializer is deprecated. Use he_initializer_scale instead.", DeprecationWarning, 2)
-    he_scale = he_initializer_scale(kernel_shape=kernel_shape, gain=gain)
-    if use_weight_scaling:
-        op_scale = he_scale
-        kernel_initializer = tf.keras.initializers.RandomNormal()
-    else:
-        op_scale = 1.0
-        kernel_initializer = tf.keras.initializers.RandomNormal(0, he_scale)
-    return op_scale, kernel_initializer

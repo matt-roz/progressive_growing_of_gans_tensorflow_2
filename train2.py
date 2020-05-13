@@ -13,29 +13,9 @@ from tensorflow.keras.utils import plot_model
 from config import conf
 from data import get_dataset_pipeline
 from networks import generator_paper, discriminator_paper
-from utils import save_eval_images
+from utils import save_eval_images, transfer_ema_weights
 from losses import wasserstein_discriminator_loss, wasserstein_generator_loss, wasserstein_gradient_penalty, \
     discriminator_epsilon_drift
-
-
-def transfer_ema_weights(
-        source_model: tf.keras.Model,
-        target_model: tf.keras.Model,
-        source_ema: Optional[tf.train.ExponentialMovingAverage] = None,
-        layer_name_prefix: str = '') -> None:
-    for source_layer in source_model.layers:
-        source_vars = source_layer.variables
-        if source_layer.name.startswith(layer_name_prefix) and source_vars:
-            try:
-                target_layer = target_model.get_layer(name=source_layer.name)
-            except ValueError:
-                continue
-            for source_var, target_var in zip(source_vars, target_layer.variables):
-                if source_ema is not None:
-                    transfer_var = source_ema.average(source_var)
-                else:
-                    transfer_var = source_var
-                target_var.assign(transfer_var)
 
 
 class ProgressiveGAN(tf.keras.Model):
