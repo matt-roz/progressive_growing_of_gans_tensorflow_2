@@ -34,15 +34,15 @@ general_config.logging                  = True      # bool: de-/activates file l
 general_config.out_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')  # os.PathLike: directory for output files (images, models)
 general_config.log_dir                  = os.path.join('/media', 'storage', 'outs', f'{timestamp}-{host}')  # os.PathLike: directory for logging (logfile, tensorboard)
 general_config.data_dir                 = os.path.join('/media', 'storage', 'tensorflow_datasets')          # os.PathLike: directory to load tensorflow_datasets from
-general_config.train_eagerly            = False      # bool: de-/activates execution of train_step in graph mode
+general_config.train_eagerly            = False     # bool: de-/activates execution of train_step in graph mode
 general_config.XLA                      = False     # bool: de-/activates XLA JIT compilation for train_step
-general_config.strategy                 = 'default' # str: distribution strategy; options are ['default', 'mirrored', 'multimirrored']
+general_config.strategy                 = 'mirrored'# str: distribution strategy; options are ['mirrored', 'multimirrored'] or a device list
 general_config.checkpoint_freq          = 54        # uint: epoch frequency to checkpoint models with (0 = disabled)
 general_config.eval_freq                = 1         # uint: epoch frequency to evaluate models with (0 = disabled)
 general_config.log_freq                 = 1         # uint: epoch frequency to log with (0 = disabled)
 
 model_config = EasyDict()               # configuration of model building
-model_config.leaky_alpha                = 0.3       # float: leakiness of LeakyReLU activations
+model_config.leaky_alpha                = 0.2       # float: leakiness of LeakyReLU activations
 model_config.generator_ema              = 0.999     # float: exponential moving average of final_generator
 model_config.resolution                 = 256       # uint: final resolution in [4, 8, 16, 32, 64, 128, 256, 512, 1024]
 model_config.noise_dim                  = 512       # uint: noise_dim generator projects from
@@ -105,7 +105,10 @@ conf.log                                = log_config
 # model_config.resolution = 1024; train_config.epochs = 540
 
 # laptop config
-# general_config.out_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.log_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser('~/tensorflow_datasets'))); data_config.split = 'train[:1%]'; data_config.num_examples = 300; model_config.resolution = 32; train_config.epochs = 10; train_config.epochs_per_stage = 2; data_config.replica_batch_sizes = {2: 32, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3};
+# general_config.out_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.log_dir = os.path.join(os.getcwd(), 'outs', f'{timestamp}-{host}'); general_config.data_dir = os.path.abspath(os.path.realpath(os.path.expanduser('~/tensorflow_datasets'))); data_config.split = 'train[:2%]'; data_config.num_examples = 600; model_config.resolution = 32; train_config.epochs = 20; train_config.epochs_per_stage = 5; data_config.replica_batch_sizes = {2: 32, 3: 16, 4: 16, 5: 16, 6: 16, 7: 16, 8: 14, 9: 6, 10: 3};
+
+# benchmark config
+# general_config.save = False; general_config.evaluate = False; general_config.strategy = "mirrored"; data_config.split = 'train[:10%]'; data_config.num_examples = 3000; model_config.resolution = 1024; train_config.epochs = 20; train_config.epochs_per_stage = 2;
 
 # ----------------------------------------------------------------------------------------------------------------------
 # Placeholders (these configurations are automatically set at runtime)
