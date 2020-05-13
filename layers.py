@@ -100,7 +100,7 @@ class StandardDeviationLayer(tf.keras.layers.Layer):
         if self.channel_axis == -1:
             feature_shape = (input_shape[0], input_shape[1], input_shape[2], 1)
         else:
-            feature_shape = (input_shape[0], 1, input_shape[1], input_shape[2])
+            feature_shape = (input_shape[0], 1, input_shape[2], input_shape[3])
         feature = tf.tile(mean_stddev, feature_shape)
         return tf.concat([inputs, feature], axis=self.channel_axis)
 
