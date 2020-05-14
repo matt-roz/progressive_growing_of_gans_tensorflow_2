@@ -186,10 +186,10 @@ The following features are planned for the near future.
 
 - [ ] add mixed_precision (fp16) training
   - [ ] make models [`model.py`](model.py) dtype aware
-- [ ] support for NCHW (channel_first) data format
+- [x] support for NCHW (channel_first) data format
   - [x] make custom layers [`layers.py`](layers.py) data_format aware
-  - [ ] make models [`model.py`](model.py) data_format aware
-  - [ ] configurable via [`config.py`](config.py)
+  - [x] make models [`model.py`](model.py) data_format aware
+  - [x] configurable via [`config.py`](config.py)
 - [ ] support for non RGB-images
   - [ ] make custom layers [`layers.py`](layers.py) num_channels aware
   - [ ] make models [`model.py`](model.py) num_channels aware
