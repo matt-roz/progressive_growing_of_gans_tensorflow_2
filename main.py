@@ -6,7 +6,7 @@ from shutil import copy
 
 import tensorflow as tf
 
-from train2 import train
+from experimental_train_v2 import train
 from config import conf
 from utils import get_environment_variable, create_directory
 
