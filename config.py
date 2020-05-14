@@ -40,6 +40,7 @@ general_config.strategy                 = 'mirrored'# str: distribution strategy
 general_config.checkpoint_freq          = 54        # uint: epoch frequency to checkpoint models with (0 = disabled)
 general_config.eval_freq                = 1         # uint: epoch frequency to evaluate models with (0 = disabled)
 general_config.log_freq                 = 1         # uint: epoch frequency to log with (0 = disabled)
+general_config.global_seed              = 1000      # int: global tensorflow seed
 
 model_config = EasyDict()               # configuration of model building
 model_config.leaky_alpha                = 0.2       # float: leakiness of LeakyReLU activations
@@ -64,6 +65,7 @@ train_config.drift_epsilon              = 0.001     # float: epsilon scalar for 
 train_config.use_gradient_penalty       = True      # bool: de-/activates gradient_penalty applied to discriminator loss as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_lambda                = 10.0      # float: lambda scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_target                = 1.0       # float: target scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
+train_config.random_image_seed          = 42        # int: seed for fixed-random evaluate images
 
 data_config = EasyDict()                # configuration of data set pipeline
 data_config.registered_name             = 'celeb_a_hq'                   # str: name argument for tensorflow_datasets.load
