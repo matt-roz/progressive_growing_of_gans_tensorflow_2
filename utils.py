@@ -92,13 +92,13 @@ def save_eval_images(
     # inference on generator to get images
     if len(generator.outputs) == 1:  # generator only has output for current stage
         fixed_predictions = generator([static_noise, alpha], training=False).numpy()
-        rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False).numpy()
+        rand_predictions = generator([np.random.normal(size=noise_shape), alpha], training=False).numpy()
     else:  # generator has output for all stages
         if not 2 <= stage <= 10:
             raise IndexError(f"generator has output for stages 2 to {2+len(generator.outputs)}: "
                              f"attempted to access output for stage {stage}")
         fixed_predictions = generator([static_noise, alpha], training=False)[stage - 2].numpy()
-        rand_predictions = generator([tf.random.normal(shape=noise_shape), alpha], training=False)[stage - 2].numpy()
+        rand_predictions = generator([np.random.normal(size=noise_shape), alpha], training=False)[stage - 2].numpy()
 
     # from tf.float32 [-1, 1] to np.uint8 [0, 255]
     fixed_predictions = 255 * ((fixed_predictions + 1.0) / 2.0)

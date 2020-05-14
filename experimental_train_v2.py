@@ -159,7 +159,7 @@ def train():
     total_image_count = 0
     steps_per_epoch = int(conf.data.num_examples // model.global_batch_size)
     stage_start_time = train_start_time = time.time()
-    random_noise = tf.random.normal(shape=(16, conf.model.noise_dim), seed=1000)
+    random_noise = tf.random.normal(shape=(16, conf.model.noise_dim), seed=conf.train.random_image_seed)
     logging.info(f"Starting to train Stage {model.current_stage}")
 
     for epoch in epochs:

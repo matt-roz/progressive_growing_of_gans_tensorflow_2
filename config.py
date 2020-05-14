@@ -40,6 +40,7 @@ general_config.strategy                 = 'mirrored'# str: distribution strategy
 general_config.checkpoint_freq          = 54        # uint: epoch frequency to checkpoint models with (0 = disabled)
 general_config.eval_freq                = 1         # uint: epoch frequency to evaluate models with (0 = disabled)
 general_config.log_freq                 = 1         # uint: epoch frequency to log with (0 = disabled)
+general_config.global_seed              = 1000      # int: global tensorflow seed
 
 model_config = EasyDict()               # configuration of model building
 model_config.leaky_alpha                = 0.2       # float: leakiness of LeakyReLU activations
@@ -47,7 +48,7 @@ model_config.generator_ema              = 0.999     # float: exponential moving 
 model_config.resolution                 = 256       # uint: final resolution in [4, 8, 16, 32, 64, 128, 256, 512, 1024]
 model_config.noise_dim                  = 512       # uint: noise_dim generator projects from
 model_config.epsilon                    = 1e-8      # float: small constant for numerical stability in PixelNormalization as well as StandardDeviation Layer
-model_config.data_format                = 'channels_last'  # str: order of dimensions for images
+model_config.data_format                = 'channels_first'  # str: order of dimensions for images
 model_config.use_bias                   = True      # bool: de-/activates usage of biases in all trainable layers
 model_config.use_stages                 = True      # bool: de-/activates progressive training of model in stages (if deactivated only last stage for final resolution is trained)
 model_config.use_fused_scaling          = True      # bool: de-/activates up- and downsampling of images via strides=(2, 2) in Conv2D and Conv2DTranspose (else UpSampling2D and AveragePooling2D is used)
@@ -64,6 +65,7 @@ train_config.drift_epsilon              = 0.001     # float: epsilon scalar for 
 train_config.use_gradient_penalty       = True      # bool: de-/activates gradient_penalty applied to discriminator loss as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_lambda                = 10.0      # float: lambda scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
 train_config.wgan_target                = 1.0       # float: target scalar for gradient_penalty as described in https://arxiv.org/abs/1704.00028
+train_config.random_image_seed          = 42        # int: seed for fixed-random evaluate images
 
 data_config = EasyDict()                # configuration of data set pipeline
 data_config.registered_name             = 'celeb_a_hq'                   # str: name argument for tensorflow_datasets.load
