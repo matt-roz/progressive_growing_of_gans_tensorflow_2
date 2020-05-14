@@ -228,7 +228,7 @@ def train():
     global_batch_size = replica_batch_size * conf.general.strategy.num_replicas_in_sync
     steps_per_epoch = int(conf.data.num_examples // global_batch_size)
     stage_start_time = train_start_time = time.time()
-    random_noise = tf.random.normal(shape=(16, conf.model.noise_dim), seed=1000)
+    random_noise = tf.random.normal(shape=(16, conf.model.noise_dim), seed=conf.train.random_image_seed)
 
     # create epoch iterator, compile train_step_fn depending on run mode configuration
     epochs = tqdm(range(conf.train.epochs), f"Progressive-GAN(stage={current_stage}, shape={image_shape}", unit='epoch')

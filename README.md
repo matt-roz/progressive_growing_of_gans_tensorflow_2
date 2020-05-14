@@ -99,6 +99,8 @@ The following options are configurable via [`config.py`](config.py). This config
 | checkpoint_freq | uint | 54 | epoch frequency to checkpoint models with (0 = disabled) |
 | eval_freq | uint | 1 | epoch frequency to evaluate models with (0 = disabled) |
 | log_freq | uint | 1 | epoch frequency to log with (0 = disabled) |
+| global_seed | int | 1000 | global tensorflow seed |
+
 
 **Note:** If you want to train on a cluster (strategy = `'multimirrored'`), make sure that your environment variable `$TF_CONFIG` is correctly configured for each node. This repository defines the worker at index 0 as its chief. The chief will handle all file outputs (make sure he has the necessary rights to write within the defined output directories).
 
@@ -135,6 +137,7 @@ The following options are configurable via [`config.py`](config.py). This config
 | use_gradient_penalty | bool | True | de-/activates gradient_penalty applied to discriminator loss |
 | wgan_lambda | float | 10.0 | wasserstein lambda scalar for gradient_penalty |
 | wgan_target | float | 1.0 | wasserstein target scalar for gradient_penalty |
+| random_image_seed | int | 42 | seed for fixed-random evaluate images |
 
 </details>
 

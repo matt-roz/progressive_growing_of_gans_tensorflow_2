@@ -11,8 +11,9 @@ from config import conf
 from utils import get_environment_variable, create_directory
 
 if __name__ == '__main__':
-    # device placement
+    # device placement, global seed
     tf.debugging.set_log_device_placement(conf.log.device_placement)
+    tf.random.set_seed(conf.general.global_seed)
 
     # set distribution strategy
     if conf.general.strategy == 'mirrored':
